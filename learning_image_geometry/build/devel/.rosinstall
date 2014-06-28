@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/leus/ros/groovy/au-ros-pkg/learning_image_geometry/build/devel/setup.sh
