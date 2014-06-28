@@ -1,0 +1,14 @@
+<package>
+  <description brief="tabletop_au2014">
+
+     tabletop_au2014
+
+  </description>
+  <author>leus</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/tabletop_au2014</url>
+
+</package>
+
+
