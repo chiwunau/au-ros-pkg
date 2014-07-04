@@ -1,0 +1,20 @@
+<launch>
+  <arg name="image" default="/camera/rgb/image_color" />
+  <param name="/use_sim_time" value="True" />
+  
+  <node name="extract_object_image" pkg="detect_touched_object" type="extract_object_image" output="screen">
+    <remap from="image" to="$(arg image)" />
+  </node>
+
+  <node name="input_viewer" pkg="image_view" type="image_view">
+    <remap from="image" to="$(arg image)" />
+    <param name="autosize" value="True" />
+  </node>
+
+  <node name="output_viewer" pkg="image_view" type="image_view">
+    <remap from="image" to="image_out" />
+    <param name="autosize" value="True" />
+  </node>
+</launch>
+
+
