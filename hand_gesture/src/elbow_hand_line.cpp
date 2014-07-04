@@ -47,14 +47,14 @@ void draw_marker(const tf::StampedTransform &tr){
   geometry_msgs::Point p;
   p.x = 0; p.y = 0; p.z =0;
   marker.points.push_back(p);
-  p.x = 10 * tr.getOrigin().x();
-  p.y = 10 * tr.getOrigin().y();
-  p.z = 10 * tr.getOrigin().z();
+  p.x = 3 * tr.getOrigin().x();
+  p.y = 3 * tr.getOrigin().y();
+  p.z = 3 * tr.getOrigin().z();
   marker.points.push_back(p);
   marker.scale.x = 0.01;
   marker.color.a = 1.0;
-  marker.color.r = 0.0;
-  marker.color.g = 1.0;
+  marker.color.r = 1.0;
+  marker.color.g = 0.0;
   marker.color.b = 0.0;
 
   visualpub.publish(marker);

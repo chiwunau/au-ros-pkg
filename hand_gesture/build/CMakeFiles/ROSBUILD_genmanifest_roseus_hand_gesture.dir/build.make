@@ -50,7 +50,7 @@ CMakeFiles/ROSBUILD_genmanifest_roseus_hand_gesture: /home/au/.ros/roseus/groovy
 /home/au/.ros/roseus/groovy/hand_gesture/manifest.l: ../manifest.xml
 	$(CMAKE_COMMAND) -E cmake_progress_report /home/au/ros/groovy/au-ros-pkg/hand_gesture/build/CMakeFiles $(CMAKE_PROGRESS_1)
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold "Generating /home/au/.ros/roseus/groovy/hand_gesture/manifest.l"
-	/home/au/ros/groovy/jsk-ros-pkg/jsk_roseus/geneus/scripts/genmanifest_eus hand_gesture
+	/home/au/ros/groovy/jsk-ros-pkg/jsk_model_tools/jsk-ros-pkg/jsk_roseus/geneus/scripts/genmanifest_eus hand_gesture
 
 ROSBUILD_genmanifest_roseus_hand_gesture: CMakeFiles/ROSBUILD_genmanifest_roseus_hand_gesture
 ROSBUILD_genmanifest_roseus_hand_gesture: /home/au/.ros/roseus/groovy/hand_gesture/manifest.l
