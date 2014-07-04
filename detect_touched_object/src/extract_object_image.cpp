@@ -28,6 +28,13 @@ class FrameDrawer
   std::vector<cv::Point2d>::iterator vertices_it_;
   std::vector< std::vector<cv::Point2d> >::iterator vertices_arr_it_; 
   bool cam_info_ok_;
+  bool box_ok_;
+  cv::Mat image_src_;
+  cv::Mat image_dst_;
+  cv_bridge::CvImagePtr input_bridge_;
+  cv_bridge::CvImagePtr output_bridge_;
+  
+  
   
 public:
   FrameDrawer()
@@ -40,10 +47,12 @@ public:
     image_pub_ = it_.advertise("image_out",1);
     cvInitFont(&font_, CV_FONT_HERSHEY_SIMPLEX, 0.5, 0.5);
     cam_info_ok_ = false;
+    box_ok_ = false;
   }
 
   void boxesCb(const jsk_pcl_ros::BoundingBoxArray::ConstPtr& msg)
   {
+    this->box_ok_ = true;
     boxes_ = msg->boxes;
     boxes_it_ = boxes_.begin();
     pos_.clear();
@@ -64,6 +73,8 @@ public:
 	      geometry_msgs::Quaternion orient = box.pose.orientation;
 	      geometry_msgs::Vector3 dim = box.dimensions;
 	      cv::Vec3d pos_world(pos.x, pos.y, pos.z);
+
+	      cv::Mat rot = this->quatToMatrix(orient);
 	      
 	      int i,j,k,a,b,c;
 	      for(i=0; i<2; i++){
@@ -72,22 +83,94 @@ public:
 	      	  a = i==0 ? 1: -1;
 	      	  b = j==0 ? 1: -1;
 	      	  c = k==0 ? 1: -1;
-	      	  cv::Vec3d vertex_tmp = cv::Vec3d(a*dim.x/2, b*dim.y/2, c*dim.z/2);
-	      	  vertex_tmp = this->quatToMatrix(vertex_tmp, orient);
-	      	  vertex_tmp = vertex_tmp + pos_world;
-		    vertices.push_back(cam_model_.project3dToPixel(vertex_tmp));
+	      	  cv::Vec3d vertex = cv::Vec3d(a*dim.x/2, b*dim.y/2, c*dim.z/2);
+		  cv::Mat vertex_tmp = (cv::Mat_<double>(3,1)<< vertex[0], vertex[1], vertex[2]);
+		  vertex_tmp = rot * vertex_tmp;
+		  vertex = cv::Vec3d(vertex_tmp.at<double>(0,0),vertex_tmp.at<double>(1,0),vertex_tmp.at<double>(2,0));
+	      	  vertex = vertex + pos_world;
+		    vertices.push_back(cam_model_.project3dToPixel(vertex));
 	      	}}}
 	      vertices_arr_.push_back(vertices);
 	      pos_.push_back(cam_model_.project3dToPixel(pos_world));
 	    }
 	  ++boxes_it_;
 	}
+      
+
     }
   }
-  cv::Vec3d quatToMatrix(cv::Vec3d v, geometry_msgs::Quaternion q)
+
+  
+  void imageCb(const sensor_msgs::ImageConstPtr& image_msg,
+	       const sensor_msgs::CameraInfoConstPtr& info_msg)
+  {
+    ROS_INFO("ImageCb");
+    //    cv::Mat image;
+    try
+      {
+      input_bridge_ = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+      output_bridge_ = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
+      
+    }
+    catch (cv_bridge::Exception& ex)
+      {
+      ROS_ERROR("[draw_frames] Failed to convert image");
+      return;
+    }
+    cam_info_ok_ = cam_model_.fromCameraInfo(info_msg);
+    
+    if (this->box_ok_)
+      this->imageDraw();
+  }
+
+  void imageDraw()
+  {
+    cv::Mat image = output_bridge_->image;
+    std::vector< std::vector<cv::Point2f> > hull( vertices_arr_.size());
+    pos_it_ = pos_.begin();
+    vertices_arr_it_ = vertices_arr_.begin();
+        
+    int i=0;
+    int j=0;
+    while(pos_it_ != pos_.end() && vertices_arr_it_ != vertices_arr_.end())
+      {
+	cv::circle(image, *pos_it_, 5, CV_RGB(255, 0, 0), -1);
+	
+	vertices_it_ = (*vertices_arr_it_).begin();
+	while(vertices_it_ != (*vertices_arr_it_).end())
+	  {
+	    cv::circle(image, *vertices_it_, 1, CV_RGB(0, 0, 0), -1);
+	    ++vertices_it_;
+	  }
+
+	cv::Mat test = (cv::Mat_<float>(3,2) << 10,20,30,40,50,60);
+	std::vector<cv::Point2f> hull_t;
+	//std::cout<<test<<std::endl;
+
+	std::vector<cv::Point2f> vertices_arr_tmp;
+	cv::Mat(*vertices_arr_it_).copyTo(vertices_arr_tmp);
+	cv::convexHull(cv::Mat(vertices_arr_tmp), hull[i], false);
+	//	std::cout<<hull[i]<<std::endl;
+	++pos_it_;
+	++vertices_arr_it_;
+	++i;
+      }
+    //    cv::drawContours( image, hull, -1, cv::Scalar(0,0,0), 1, 8, std::vector<cv::Vec4i>(), 0, cv::Point2f(0,0) );
+    
+    
+    for(i=0; i<hull.size(); i++){
+      for( j=0; j<hull[i].size(); j++){
+	cv::line(image, hull[i][j], hull[i][j+1<hull[i].size()?j+1:0], cv::Scalar(100,100,200), 2, CV_AA);
+      }
+    }
+    image_pub_.publish(output_bridge_->toImageMsg()); 
+    
+  }
+
+  cv::Mat quatToMatrix(geometry_msgs::Quaternion q)
   {
     cv::Mat rot = cv::Mat_<double>(3,3);
-    cv::Mat vec = (cv::Mat_<double>(3,1)<< v[0], v[1], v[2]);
+
     double sqw = q.w*q.w;
     double sqx = q.x*q.x;
     double sqy = q.y*q.y;
@@ -113,48 +196,9 @@ public:
     rot.at<double>(2,1) = 2.0 * (tmp1 + tmp2)*invs ;
     rot.at<double>(1,2) = 2.0 * (tmp1 - tmp2)*invs ;
     
-    cv::Mat mul = cv::Mat_<double>(3,1);
-    //    std::cout<<rot<<std::endl<<std::endl<<vec<<std::endl;
-    mul = rot * vec;
-    v = cv::Vec3d(mul.at<double>(0,0),mul.at<double>(1,0),mul.at<double>(2,0));
-    return v;
+    return rot;
   }
-  
-  void imageCb(const sensor_msgs::ImageConstPtr& image_msg,
-	       const sensor_msgs::CameraInfoConstPtr& info_msg)
-  {
-    ROS_INFO("ImageCb");
-    cv::Mat image;
-    cv_bridge::CvImagePtr input_bridge;
-    try
-      {
-      input_bridge = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
-      image = input_bridge->image;
-    }
-    catch (cv_bridge::Exception& ex)
-      {
-      ROS_ERROR("[draw_frames] Failed to convert image");
-      return;
-    }
-    cam_info_ok_ = cam_model_.fromCameraInfo(info_msg);
-    
-    pos_it_ = pos_.begin();
-    vertices_arr_it_ = vertices_arr_.begin();
-    while(pos_it_ != pos_.end() && vertices_arr_it_ != vertices_arr_.end())
-      {
-	cv::circle(image, *pos_it_, 5, CV_RGB(255, 0, 0), -1);
-	vertices_it_ = (*vertices_arr_it_).begin();
 
-	while(vertices_it_ != (*vertices_arr_it_).end())
-	  {
-	    cv::circle(image, *vertices_it_, 1, CV_RGB(0, 0, 0), -1);
-	    ++vertices_it_;
-	  }
-	++pos_it_;
-	++vertices_arr_it_;
-      }
-    image_pub_.publish(input_bridge->toImageMsg()); 
-  }
 };
 
 int main(int argc, char** argv)
