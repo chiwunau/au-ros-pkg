@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package>
+  <name>detect_touched_object</name>
+  <version>0.0.0</version>
+  <description>The detect_touched_object package</description>
+
+  <maintainer email="au@jsk.imi.i.u-tokyo.ac.jp">au</maintainer>
+  
+  <license>TODO</license>
+
+ <buildtool_depend>catkin</buildtool_depend>
+ <build_depend>image_geometry</build_depend>
+ <build_depend>image_transport</build_depend>
+ <build_depend>cv_bridge</build_depend>
+ <build_depend>tf</build_depend>
+ <build_depend>image_view</build_depend>
+ <build_depend>jsk_pcl_ros</build_depend>
+ 
+ <run_depend>image_geometry</run_depend>
+ <run_depend>image_transport</run_depend>
+ <run_depend>cv_bridge</run_depend>
+ <run_depend>tf</run_depend>
+ <run_depend>image_view</run_depend>
+ <run_depend>jsk_pcl_ros</run_depend>
+
+  <export>
+  </export>
+</package>
+
+
