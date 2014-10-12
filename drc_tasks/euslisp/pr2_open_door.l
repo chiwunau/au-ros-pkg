@@ -120,20 +120,20 @@
       (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
       (send *pr2* :move-to (send c_base :copy-worldcoords) :world)
       (send *irtviewer* :draw-objects)
-      (if (= (mod d 5) 0)
+      (if (= (mod d 30) 0)
 	  (progn 
-	    (setq diff (v- (send c_base :worldpos) (send pre_c_base :world)))
+	    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
 	    (send *ri* :go-pos-unsafe 
 		  (elt diff 0)
 		  (elt diff 1)
-		  -5)
-	    (send *ri* :wait-interpolation)
+		  -30)
+	    ;(send *ri* :wait-interpolation)
 	    (send pre_c_base :newcoords (send c_base :copy-worldcoords)))))
-    (setq diff (v- (send c_base :worldpos) (send pre_c_base :world)))
+    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
     (send *ri* :go-pos-unsafe 
 	  (elt diff 0)
 	  (elt diff 1)
-	  (* -1 (mod d 5)))))
+	  (* -1 (mod d 30)))))
 	  
     
      
