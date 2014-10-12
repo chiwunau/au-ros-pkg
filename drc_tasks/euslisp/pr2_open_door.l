@@ -78,7 +78,7 @@
 
 (defun move-back-open-door (r tgt-deg)
   (send *pr2* :move-to (make-coords) :world)
-  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  ;;(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let ((d 0)
 	(c_hand (make-cascoords :coords (send *pr2* :larm :end-coords :copy-worldcoords)))
 	(c_door (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
@@ -93,8 +93,8 @@
       (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords))
       (setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
       (send *irtviewer* :draw-objects))
-    (send *ri* :angle-vector-sequence av-seq 100)
-    (send *ri* :wait-interpolation)
+    ;;(send *ri* :angle-vector-sequence av-seq 100)
+    ;;(send *ri* :wait-interpolation)
     ;;start go back
     (read)
     (send c_door :assoc c_base)
@@ -106,6 +106,44 @@
       (send *irtviewer* :draw-objects))
     ))
 
+(defun move-base-open-door (r tgt-deg)
+  (send *pr2* :move-to (make-coords) :world)
+  (let ((d 0)
+	(c_door (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
+	(c_base (make-cascoords))
+	(pre_c_base (make-cascoords)))
+    (send *irtviewer* :objects c_door c_base)
+    (send c_door :assoc c_base)
+    (while (< d tgt-deg)
+      (setq d (+ d 1))
+      (send c_door :rotate (deg2rad -1) :z)
+      (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
+      (send *pr2* :move-to (send c_base :copy-worldcoords) :world)
+      (send *irtviewer* :draw-objects)
+      (if (= (mod d 5) 0)
+	  (progn 
+	    (setq diff (v- (send c_base :worldpos) (send pre_c_base :world)))
+	    (send *ri* :go-pos-unsafe 
+		  (elt diff 0)
+		  (elt diff 1)
+		  -5)
+	    (send *ri* :wait-interpolation)
+	    (send pre_c_base :newcoords (send c_base :copy-worldcoords)))))
+    (setq diff (v- (send c_base :worldpos) (send pre_c_base :world)))
+    (send *ri* :go-pos-unsafe 
+	  (elt diff 0)
+	  (elt diff 1)
+	  (* -1 (mod d 5)))))
+	  
+    
+     
+
+   
+      
+      
+      
+      
+      
 
 
 
