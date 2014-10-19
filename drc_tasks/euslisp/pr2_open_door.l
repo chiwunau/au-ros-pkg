@@ -53,6 +53,12 @@
       	(setq av-seq nil)
       	(send c_base :translate (float-vector (- move-dist) move-dist 0))
       	(send *pr2* :move-to c_base :world)
+	;;
+	;; (dotimes (i 5)
+	;;   (setq d (+ d 1))
+	;;   (send c_door :rotate (deg2rad -1) :z)
+	;;   (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0)))
+	;;
       	(setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
       	(if ret
       	    (progn
@@ -99,7 +105,23 @@
 	  (elt diff 0)
 	  (elt diff 1)
 	  (* -1 (mod d 30)))))
-	  
+
+(defun open-b2-door ()
+  (send *ri* :start-gasp :larm :gain 0.1)
+  (rotate-knob 30 45)
+  (send *ri* :wait-interpolation)
+  (pull-door 730 95)
+  (send *ri* :wait-interpolation)
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (send *ri* :stop-grasp :larm)
+  (send *pr2* :larm :inverse-kinematics 
+	(send (send *pr2* :larm :end-coords :copy-worldcoords)
+	      :translate #f(0.0 100 0.0) :world)
+	:rotation-axis nil)
+  (pr2-reset-pose)
+  (pr2-tuckarm-pose)
+  (send *ri* :go-pos-unsafe 0.0 -0.5)
+  )
     
      
 
