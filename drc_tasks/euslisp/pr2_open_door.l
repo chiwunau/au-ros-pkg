@@ -36,7 +36,8 @@
 	(c_base (make-cascoords))
 	(av-seq (list (send *pr2* :angle-vector)))
 	ret
-	(move-dist 200.0))
+	(move-dist 100.0)
+	(move-time 1500))
     (send *irtviewer* :objects c_hand c_door)
     (send c_door :assoc c_hand)
     (while (< d tgt-deg)
@@ -44,10 +45,10 @@
       (send c_door :rotate (deg2rad -1) :z)
       (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
       (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords))
-      move base if ik unsolved or arm too close
-      (unless (and (> (norm (v- (send *pr2* :larm :end-coords :worldpos) (send *pr2* :worldpos))) 1100)
-      		   (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
-      	(send *ri* :angle-vector-sequence av-seq 200)
+      ;; move base if ik unsolved or arm too close
+      (unless (and (> (norm (v- (send *pr2* :larm :end-coords :worldpos) (send *pr2* :worldpos))) 1100))
+	(send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords))
+      	(send *ri* :angle-vector-sequence av-seq 100)
       	(send *ri* :wait-interpolation)
       	(setq av-seq nil)
       	(send c_base :translate (float-vector (- move-dist) move-dist 0))
@@ -55,18 +56,18 @@
       	(setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
       	(if ret
       	    (progn
-      	      (let ((sttm (ros::time+ (ros::time-now) (ros::time 1.0))))
+      	      (let ((sttm (ros::time+ (ros::time-now) (ros::time 0.5))))
       		(send *ri* :angle-vector (send *pr2* :angle-vector)
-      		      2000 :default-controller sttm)
+      		      move-time :default-controller sttm)
       		(send *ri* :move-trajectory
-      		      (- (/ move-dist 1000)) (/ move-dist 1000) 0.0
-      		      2000 :start-time sttm :send-action t)))
+      		      (- (/ move-dist move-time)) (/ move-dist move-time) 0.0
+      		      move-time :start-time sttm :send-action t)))
       	  (progn
       	    (print "Open door failed")
       	    (return-from pull-door nil))))
       (setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
       (send *irtviewer* :draw-objects))
-    (send *ri* :angle-vector-sequence av-seq 200)
+    (send *ri* :angle-vector-sequence av-seq 100)
     ))
 
 
