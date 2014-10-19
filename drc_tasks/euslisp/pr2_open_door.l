@@ -36,7 +36,7 @@
 	(c_base (make-cascoords))
 	(av-seq (list (send *pr2* :angle-vector)))
 	ret
-	(move-dist 100.0)
+	(move-dist 150.0)
 	(move-time 1500))
     (send *irtviewer* :objects c_hand c_door)
     (send c_door :assoc c_hand)
@@ -107,11 +107,28 @@
 	  (* -1 (mod d 30)))))
 
 (defun open-b2-door ()
-  (send *ri* :start-gasp :larm :gain 0.1)
+  (send *ri* :start-grasp :larm :gain 0.1)
   (rotate-knob 30 45)
   (send *ri* :wait-interpolation)
-  (pull-door 730 95)
+  (pull-door 730 100)
   (send *ri* :wait-interpolation)
+  (when (> (norm (v- (send *pr2* :angle-vector) (send *ri* :state :potentio-vector))) 20)
+    (send *ri* :go-pos-unsafe 0.0 0.3 0.0)
+    (send *pr2* :move-to (make-coords :pos #f(0.0 300 0.0))))
+  
+  ;;check if door is fully open
+  (let (pre-robot-av diff)
+    (dotimes (i 2)
+      (setq pre-robot-av (send *ri* :state :potentio-vector))
+      (send *pr2* :angle-vector pre-robot-av)
+      (send *pr2* :larm :inverse-kinematics 
+	    (send (send *pr2* :larm :end-coords :copy-worldcoords)
+		  :translate #f(0.0 50 0.0) :world))
+      (send *ri* :angle-vector (send *pr2* :angle-vector) 500)
+      (unix:usleep (* 500 1000))
+      (setq diff (norm (v- pre-robot-av (send *ri* :state :potentio-vector))))
+      (if (< diff 20) (return 1)))
+
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (send *ri* :stop-grasp :larm)
   (send *pr2* :larm :inverse-kinematics 
@@ -120,7 +137,7 @@
 	:rotation-axis nil)
   (pr2-reset-pose)
   (pr2-tuckarm-pose)
-  (send *ri* :go-pos-unsafe 0.0 -0.5)
+  (send *ri* :go-pos-unsafe 0.0 (/ (elt (send *pr2* :worldpos) 1) -1000.0))
   )
     
      
