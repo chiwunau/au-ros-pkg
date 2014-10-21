@@ -8,7 +8,7 @@
 
 (ros::rate 10)
 (do-until-key
- (dotimes (i 1)
+ (dotimes (i 2)
    (let ((msg (instance geometry_msgs::WrenchStamped :init))
          (tau (float-vector))
          arm J Jt# force jnt_names jnt_efforts target)
