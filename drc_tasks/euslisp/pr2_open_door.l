@@ -53,12 +53,6 @@
       	(setq av-seq nil)
       	(send c_base :translate (float-vector (- move-dist) move-dist 0))
       	(send *pr2* :move-to c_base :world)
-	;;
-	;; (dotimes (i 5)
-	;;   (setq d (+ d 1))
-	;;   (send c_door :rotate (deg2rad -1) :z)
-	;;   (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0)))
-	;;
       	(setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
       	(if ret
       	    (progn
@@ -74,47 +68,56 @@
       (setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
       (send *irtviewer* :draw-objects))
     (send *ri* :angle-vector-sequence av-seq 100)
+    (send *ri* :wait-interpolation)
+
+    ;;if real-world and model angle-vector is different
+    (when (> (norm (v- (send *pr2* :angle-vector) (send *ri* :state :potentio-vector))) 20)
+      (send c_base :translate (float-vector 0.0 300 0))
+      (send *pr2* :move-to c_base :world)
+      (setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
+      (let ((sttm (ros::time+ (ros::time-now) (ros::time 0.5))))
+	(send *ri* :angle-vector (send *pr2* :angle-vector)
+	      move-time :default-controller sttm)
+	(send *ri* :move-trajectory
+	      (- (/ move-dist move-time)) (/ move-dist move-time) 0.0
+	      move-time :start-time sttm :send-action t)))
     ))
 
 
-(defun move-base-open-door (r tgt-deg)
-  (send *pr2* :move-to (make-coords) :world)
-  (let ((d 0)
-	(c_door (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
-	(c_base (make-cascoords))
-	(pre_c_base (make-cascoords)))
-    (send *irtviewer* :objects c_door c_base)
-    (send c_door :assoc c_base)
-    (while (< d tgt-deg)
-      (setq d (+ d 1))
-      (send c_door :rotate (deg2rad -1) :z)
-      (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
-      (send *pr2* :move-to (send c_base :copy-worldcoords) :world)
-      (send *irtviewer* :draw-objects)
-      (if (= (mod d 30) 0)
-	  (progn 
-	    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
-	    (send *ri* :go-pos-unsafe 
-		  (elt diff 0)
-		  (elt diff 1)
-		  -30)
-	    ;(send *ri* :wait-interpolation)
-	    (send pre_c_base :newcoords (send c_base :copy-worldcoords)))))
-    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
-    (send *ri* :go-pos-unsafe 
-	  (elt diff 0)
-	  (elt diff 1)
-	  (* -1 (mod d 30)))))
+;; (defun move-base-open-door (r tgt-deg)
+;;   (send *pr2* :move-to (make-coords) :world)
+;;   (let ((d 0)
+;; 	(c_door (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
+;; 	(c_base (make-cascoords))
+;; 	(pre_c_base (make-cascoords)))
+;;     (send *irtviewer* :objects c_door c_base)
+;;     (send c_door :assoc c_base)
+;;     (while (< d tgt-deg)
+;;       (setq d (+ d 1))
+;;       (send c_door :rotate (deg2rad -1) :z)
+;;       (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
+;;       (send *pr2* :move-to (send c_base :copy-worldcoords) :world)
+;;       (send *irtviewer* :draw-objects)
+;;       (if (= (mod d 30) 0)
+;; 	  (progn 
+;; 	    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
+;; 	    (send *ri* :go-pos-unsafe 
+;; 		  (elt diff 0)
+;; 		  (elt diff 1)
+;; 		  -30)
+;; 	    ;(send *ri* :wait-interpolation)
+;; 	    (send pre_c_base :newcoords (send c_base :copy-worldcoords)))))
+;;     (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
+;;     (send *ri* :go-pos-unsafe 
+;; 	  (elt diff 0)
+;; 	  (elt diff 1)
+;; 	  (* -1 (mod d 30)))))
 
 (defun open-b2-door ()
   (send *ri* :start-grasp :larm :gain 0.1)
   (rotate-knob 30 45)
   (send *ri* :wait-interpolation)
   (pull-door 730 100)
-  (send *ri* :wait-interpolation)
-  (when (> (norm (v- (send *pr2* :angle-vector) (send *ri* :state :potentio-vector))) 20)
-    (send *ri* :go-pos-unsafe 0.0 0.3 0.0)
-    (send *pr2* :move-to (make-coords :pos #f(0.0 300 0.0))))
   
   ;;check if door is fully open
   (let (pre-robot-av diff)
@@ -127,14 +130,16 @@
       (send *ri* :angle-vector (send *pr2* :angle-vector) 500)
       (unix:usleep (* 500 1000))
       (setq diff (norm (v- pre-robot-av (send *ri* :state :potentio-vector))))
-      (if (< diff 20) (return 1)))
+      (if (< diff 15) (return 1)))
 
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (send *ri* :angle-vector (send *pr2* :angle-vector))
   (send *ri* :stop-grasp :larm)
   (send *pr2* :larm :inverse-kinematics 
 	(send (send *pr2* :larm :end-coords :copy-worldcoords)
 	      :translate #f(0.0 100 0.0) :world)
 	:rotation-axis nil)
+  (send *pr2* :go-pos-unsafe -0.2 0.0)
   (pr2-reset-pose)
   (pr2-tuckarm-pose)
   (send *ri* :go-pos-unsafe 0.0 (/ (elt (send *pr2* :worldpos) 1) -1000.0))
