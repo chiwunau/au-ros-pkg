@@ -71,7 +71,7 @@
     (send *ri* :wait-interpolation)
 
     ;;if real-world and model angle-vector is different
-    (when (> (norm (v- (send *pr2* :angle-vector) (send *ri* :state :potentio-vector))) 20)
+    (when (> (norm (v- (send *pr2* :angle-vector) (send *ri* :state :potentio-vector))) 25)
       (send c_base :translate (float-vector 0.0 300 0))
       (send *pr2* :move-to c_base :world)
       (setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
@@ -83,35 +83,6 @@
 	      move-time :start-time sttm :send-action t)))
     ))
 
-
-;; (defun move-base-open-door (r tgt-deg)
-;;   (send *pr2* :move-to (make-coords) :world)
-;;   (let ((d 0)
-;; 	(c_door (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
-;; 	(c_base (make-cascoords))
-;; 	(pre_c_base (make-cascoords)))
-;;     (send *irtviewer* :objects c_door c_base)
-;;     (send c_door :assoc c_base)
-;;     (while (< d tgt-deg)
-;;       (setq d (+ d 1))
-;;       (send c_door :rotate (deg2rad -1) :z)
-;;       (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
-;;       (send *pr2* :move-to (send c_base :copy-worldcoords) :world)
-;;       (send *irtviewer* :draw-objects)
-;;       (if (= (mod d 30) 0)
-;; 	  (progn 
-;; 	    (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
-;; 	    (send *ri* :go-pos-unsafe 
-;; 		  (elt diff 0)
-;; 		  (elt diff 1)
-;; 		  -30)
-;; 	    ;(send *ri* :wait-interpolation)
-;; 	    (send pre_c_base :newcoords (send c_base :copy-worldcoords)))))
-;;     (setq diff (scale 0.001 (v- (send c_base :worldpos) (send pre_c_base :worldpos))))
-;;     (send *ri* :go-pos-unsafe 
-;; 	  (elt diff 0)
-;; 	  (elt diff 1)
-;; 	  (* -1 (mod d 30)))))
 
 (defun open-b2-door ()
   (send *ri* :start-grasp :larm :gain 0.1)
