@@ -20,7 +20,7 @@
      ;; (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
      ;; (setq jnt_efforts (send *ri* :state :effort))
      ;; (setq jnt_names (send *ri* :state :name))
-      (setq target (send *pr2* arm :end-coords))
+     (setq target (send *pr2* arm :end-coords))
      ;; (setq J (send *pr2* :calc-jacobian-from-link-list
      ;;               (send *pr2* :link-list (send target :parent))
      ;;               :move-target target
@@ -37,7 +37,7 @@
      ;; (setq Jt# (sr-inverse (transpose J)))
      ;; (setq force (scale -1 (transform Jt# tau)))
 
-     (setq force (send *pr2* :calc-force-from-joint-torque arm (send *ri* :state :effort) :use-torso nil))
+     (setq force (scale -1 (send *pr2* :calc-force-from-joint-torque arm (send *ri* :state :effort) :use-torso nil)))
      (send msg :header :stamp (send *ri* :state :stamp))
      (send msg :header :frame_id (send (send target :parent) :name))
      (send msg :wrench :force :x (elt force 0))
