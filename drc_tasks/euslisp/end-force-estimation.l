@@ -37,7 +37,7 @@
      ;; (setq Jt# (sr-inverse (transpose J)))
      ;; (setq force (scale -1 (transform Jt# tau)))
 
-     (setq force (send *pr2* :calc-force-from-joint-torque arm (send *ri* :state :effort) :use-torso nil))
+     (setq force (scale -1 (send *pr2* :calc-force-from-joint-torque arm (send *ri* :state :torque-vector) :use-torso nil)))
      (send msg :header :stamp (send *ri* :state :stamp))
      (send msg :header :frame_id (send (send target :parent) :name))
      (send msg :wrench :force :x (elt force 0))
