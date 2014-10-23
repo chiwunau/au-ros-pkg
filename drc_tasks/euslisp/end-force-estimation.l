@@ -10,32 +10,10 @@
 (do-until-key
  (dotimes (i 2)
    (let ((msg (instance geometry_msgs::WrenchStamped :init))
-	 force)
-	 
-         ;; (tau (float-vector))
-         ;; arm J Jt# force jnt_names jnt_efforts target)
-
+	 force target)
      (if (= i 0) (setq arm :larm)
        (setq arm :rarm))
-     ;; (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-     ;; (setq jnt_efforts (send *ri* :state :effort))
-     ;; (setq jnt_names (send *ri* :state :name))
-      (setq target (send *pr2* arm :end-coords))
-     ;; (setq J (send *pr2* :calc-jacobian-from-link-list
-     ;;               (send *pr2* :link-list (send target :parent))
-     ;;               :move-target target
-     ;;               :rotation-axis t
-     ;;               :translation-axis t))
-     
-     ;; (let ((ll (send *pr2* :link-list (send target :parent)))
-     ;;       jnt_name jnt_eff)
-     ;;   (mapcar #'(lambda (l)
-     ;;               (setq jnt_name (send l :joint :name))
-     ;;               (setq jnt_eff (float-vector (elt jnt_efforts (position jnt_name jnt_names :test 'equal))))
-     ;;               (setq tau (concatenate float-vector tau jnt_eff)))
-     ;;           ll))
-     ;; (setq Jt# (sr-inverse (transpose J)))
-     ;; (setq force (scale -1 (transform Jt# tau)))
+     (setq target (send *pr2* arm :end-coords))
 
      (setq force (scale -1 (send *pr2* :calc-force-from-joint-torque arm (send *ri* :state :torque-vector) :use-torso nil)))
      (send msg :header :stamp (send *ri* :state :stamp))
