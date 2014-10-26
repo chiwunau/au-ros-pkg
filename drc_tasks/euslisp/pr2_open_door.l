@@ -3,10 +3,10 @@
   (setq tgt (make-cube 20 20 20))
   (send tgt :set-color :red)
   (send tgt :locate (send *pr2* :rarm :end-coords :worldpos))
-  (send tgt :translate #f(200 100 0))
+  (send tgt :translate #f(200 200 100))
   (send tgt :rotate (deg2rad 90) :x)
 ;  (setq *irtviewer* (make-irtviewer))
-  (send *pr2* :larm :inverse-kinematics (send tgt :copy-worldcoords))
+  (send *pr2* :larm :inverse-kinematics (send tgt :copy-worldcoords) :use-torso t)
 )
 
 (defun rotate-knob (r tgt-deg)
@@ -27,7 +27,7 @@
     (send *ri* :angle-vector-sequence av-seq 100)
     ))
 
-(defun pull-door (r tgt-deg)
+(defun pull-door (r tgt-deg (&optional (pull t) (axis-up nil)))
   (send *pr2* :move-to (make-coords) :world)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let ((d 0)
