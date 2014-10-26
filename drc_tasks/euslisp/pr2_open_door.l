@@ -27,7 +27,7 @@
     (send *ri* :angle-vector-sequence av-seq 100)
     ))
 
-(defun pull-door (r tgt-deg (&optional (pull t) (axis-up nil)))
+(defun pull-door (r tgt-deg &optional (pull t) (axis-up nil))
   (send *pr2* :move-to (make-coords) :world)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let ((d 0)
