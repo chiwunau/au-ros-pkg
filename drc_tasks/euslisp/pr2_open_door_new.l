@@ -42,13 +42,13 @@
       (dotimes (d 5)
 	(send cds_world :translate (float-vector 
 				    (* (if (= i 0) -1 1) r (deg2rad 1))  0.0 0.0))
-	(send *pr2* :larm :inverse-kinematics (send cds_tgt :copy-worldcoords))
+	(send *pr2* :larm :inverse-kinematics (send cds_tgt :copy-worldcoords) :rotation-axis t)
 	(setq av-seq (append av-seq (list (send *pr2* :angle-vector)))))
-      (send *ri* :angle-vector-sequence av-seq 500)
+      (send *ri* :angle-vector-sequence av-seq 100)
       (send *ri* :wait-interpolation)
       (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
       (setq res (send *pr2* :larm :end-coords :copy-worldcoords))
-      (setq dis (v- (send res :worldpos) (send tgt :worldpos)))
+      (setq dis (v- (send res :worldpos) (send cds_tgt :worldpos)))
       
       (cond 
        ((and (= i 0) (< (abs (elt dis 0)) (/ move_dist 2.0)) (< (elt dis 1) 0))
