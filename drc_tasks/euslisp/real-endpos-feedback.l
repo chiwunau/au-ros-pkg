@@ -1,0 +1,97 @@
+(require "package://pr2eus/pr2-interface.l")
+(setq *init-grasp-cds* (send *pr2* :larm :end-coords :copy-worldcoords))
+
+
+(defun calc-door-trajectory (r &optional (pull t) (axis-up nil))
+  (let ((d 0) lis cds_knob (max-angle 120))
+    (setq cds_knob (make-cascoords :pos (send *init-grasp-cds* :copy-pos)))
+    (cond
+     ((and pull axis-up)
+      (while (< d max-angle)
+	(send cds_knob :rotate (deg2rad 1) :z)
+	(send cds_knob :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
+	(setq lis (append lis (list (send cds_knob :copy-pos))))
+	(setq d (+ d 1))))
+     ((and pull (null axis-up))
+      (while (< d max-angle)
+	(send cds_knob :rotate (deg2rad -1) :z)
+	(send cds_knob :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
+	(setq lis (append lis (list (send cds_knob :copy-pos))))
+	(setq d (+ d 1))))
+       ((and (null pull) axis-up)
+      (while (< d max-angle)
+	(send cds_knob :rotate (deg2rad 1) :z)
+	(send cds_knob :translate (float-vector (* r (sin (deg2rad 1))) 0.0 0.0))
+	(setq lis (append lis (list (send cds_knob :copy-pos))))
+	(setq d (+ d 1))))
+     ((and (null pull) (null axis-up))
+      (while (< d max-angle)
+	(send cds_knob :rotate (deg2rad -1) :z)
+	(send cds_knob :translate (float-vector (* r (sin (deg2rad 1))) 0.0 0.0))
+	(setq lis (append lis (list (send cds_knob :copy-pos))))
+	(setq d (+ d 1))))
+     (t
+      (return-from calc-door-trajectory nil)))
+    lis))
+    
+(defun draw-trajectory (p-lis)
+  (let (c obj)
+    (dolist (p p-lis)
+      (setq c (make-cube 10 10 10))
+      (send c :locate p)
+      (send c :set-color :red)
+      (send *irtviewer* :objects c)
+      (send *irtviewer* :draw-objects :flush t))))
+
+(defun obtain-real-angle-from-trajectory (p-lis)
+  (let ((robot-arm-pos (send *pr2* :larm :end-coords :worldpos))
+	max-n dis temp)
+    (dotimes (i (length p-lis))
+      (setq dis (norm (v- robot-arm-pos (elt p-lis i))))
+      (if (or (null temp) (<= dis temp))
+	  (progn
+	    (setq temp dis)
+	    (setq max-n i))))
+    (list max-n (elt p-lis max-n))))
+	
+
+(defun real-time-angle ()
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (setq *init-grasp-cds* (send *pr2* :larm :end-coords :copy-worldcoords))
+  (send *irtviewer* :objects (list *pr2*))
+  (let ((j (calc-door-trajectory 430))
+	(c (make-cube 100 100 100))
+	ang res)
+    (send c :set-color :green)
+    (send *irtviewer* :objects c)
+    (draw-trajectory j)
+    (do-until-key 
+     (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+     (setq res (obtain-real-angle-from-trajectory j))
+     (setq ang (car res))
+     (print (cadr res))
+     (send c :locate (cadr res) :world)
+     (print ang)
+     (send *irtviewer* :draw-objects :flush t))))
+     
+     
+   
+
+
+	   
+	   
+      
+
+
+
+            
+      
+
+
+;; (defun pull-door-single-action (r tgt-deg &optional (axis-up nil))
+;;   (send *pr2* :move-to (make-coords) :world)
+;;   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+;;   (let ((d 0)
+;; 	(cds_knob (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
+;; 	(cds_hand (make-cascoords :coords (send *pr2* :larm :end-coords :copy-worldcoords)))
+
