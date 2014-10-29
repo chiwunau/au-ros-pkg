@@ -1,4 +1,6 @@
 (require "package://pr2eus/pr2-interface.l")
+(load "make-door.l")
+(pr2-init)
 (setq *init-grasp-cds* (send *pr2* :larm :end-coords :copy-worldcoords))
 
 
@@ -55,22 +57,27 @@
     (list max-n (elt p-lis max-n))))
 	
 
-(defun real-time-angle ()
+(defun real-time-angle (r)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (setq *init-grasp-cds* (send *pr2* :larm :end-coords :copy-worldcoords))
   (send *irtviewer* :objects (list *pr2*))
-  (let ((j (calc-door-trajectory 430))
-	(c (make-cube 100 100 100))
+  (let ((j (calc-door-trajectory r))
+	(dr (instance door :init r (elt (send *init-grasp-cds* :worldpos) 2)))
+	(c (make-cube 10 10 10))
 	ang res)
-    (send c :set-color :green)
-    (send *irtviewer* :objects c)
+    
+    (send (car (send dr :links)) :locate (scale -1 (send dr :end-coords :worldpos)))
+    (send (car (send dr :links)) :locate (send *pr2* :larm :end-coords :worldpos))
+
+    ;(send c :set-color :green)
+    (send *irtviewer* :objects c dr)
     (draw-trajectory j)
     (do-until-key 
      (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
      (setq res (obtain-real-angle-from-trajectory j))
      (setq ang (car res))
-     (print (cadr res))
      (send c :locate (cadr res) :world)
+     (send (car (send dr :joint-list)) :joint-angle (* -1 ang))
      (print ang)
      (send *irtviewer* :draw-objects :flush t))))
      
