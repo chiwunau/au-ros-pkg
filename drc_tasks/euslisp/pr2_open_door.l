@@ -3,7 +3,7 @@
   (setq tgt (make-cube 20 20 20))
   (send tgt :set-color :red)
   (send tgt :locate (send *pr2* :rarm :end-coords :worldpos))
-  (send tgt :translate #f(200 200 100))
+  (send tgt :translate #f(400 200 100))
   (send tgt :rotate (deg2rad 90) :x)
 ;  (setq *irtviewer* (make-irtviewer))
   (send *pr2* :larm :inverse-kinematics (send tgt :copy-worldcoords) :use-torso t)

@@ -1,17 +1,3 @@
-(defun arm-circular-av-seq (r tgt-deg)
-    (let ((d 0) 
-	  (cds_world (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
-	  (cds_tgt (make-cascoords :coords (send *pr2* :larm :end-coords :copy-worldcoords)))
-	  (av-seq nil))
-      (send cds_world :assoc cds_tgt)
-      (while (< d tgt-deg)
-      (setq d (+ d 1))
-      (send cds_world :rotate (deg2rad -1) :x :world)
-      (send cds_world :translate (float-vector 0.0 0.0 (- (* r (sin (deg2rad 1))))))
-      (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords) :rotation-axis t)
-      (setq av-seq (append av-seq (list (send *pr2* :angle-vector)))))
-      (av-seq)))
-
 (defun test-door-direction (r)
   (let ((av-org (send *ri* :state :potentio-vector))
 	cds_world cds_tgt av-seq d res move_dist dis)
@@ -57,6 +43,26 @@
        ))
   (ros::ros-warn "failed to detect direction of door")
   ))
+
+(defun test-knob-direction ()
+  (let (cds_gripper
+	cds_knob)
+    (dotimes (i 2)
+      (setq cds_gripper (make-cascoords :coords (send *cds-knob-init* :copy-worldcoords)))
+      (setq cds_knob (make-cascoords :coords
+				     (send (send cds_gripper :copy-worldcoords) 
+					   :translate (float-vector 0.0 0.0 (if (= i 0) *knob-radius* (* -1 *knob-radius*))))))
+      (setq cds_knob :assoc cds_gripper)
+      (dotimes (d 10)
+	(send c_handle :rotate (deg2rad -1) :x :world)
+	(send c_handle :translate (float-vector 0.0 0.0 (- (* r (sin (deg2rad 1))))))
+	(send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords) :rotation-axis t)
+	(setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
+
+	    
+	    
+      
+
 
        
        
