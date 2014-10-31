@@ -46,26 +46,32 @@
 
 (defun test-knob-direction ()
   (let (cds_gripper
-	cds_knob)
+	cds_knob
+	(pre-av (send *ri* :state :potentio-vector))
+	av-diff0
+	av-diff1)
     (dotimes (i 2)
-      (setq cds_gripper (make-cascoords :coords (send *cds-knob-init* :copy-worldcoords)))
-      (setq cds_knob (make-cascoords :coords
-				     (send (send cds_gripper :copy-worldcoords) 
-					   :translate (float-vector 0.0 0.0 (if (= i 0) *knob-radius* (* -1 *knob-radius*))))))
-      (setq cds_knob :assoc cds_gripper)
-      (dotimes (d 10)
-	(send c_handle :rotate (deg2rad -1) :x :world)
-	(send c_handle :translate (float-vector 0.0 0.0 (- (* r (sin (deg2rad 1))))))
-	(send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords) :rotation-axis t)
-	(setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
+      (send *pr2* pre-av)      
+      (if (= i 0)
+	  (progn
+	    (rotate-knob 5 :axis-plus t)
+	    (setq av-diff0 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector)))))
+	(progn
+	  (rotate-knob 5 :axis-plus nil)
+	  (setq av-diff1 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector))))))
+      (send *ri* pre-av 500))
+    
+    (if (< av-diff0 av-diff1)
+	(progn
+	  (ros::ros-warn "knob-axis: plus")
+	  (setq *knob-axis-plus* t)
+	  (return-from test-knob-direction t))
+      (progn
+	(ros::ros-warn "knob-axis: minus")
+	(setq *knob-axis-plus* nil)
+	(return-from test-knob-direction nil)))))
 
-	    
-	    
-      
 
-
-       
-       
 	
       
 

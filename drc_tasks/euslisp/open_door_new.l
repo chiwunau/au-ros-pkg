@@ -9,6 +9,7 @@
 (setq *knob-max-angle* nil)
 (setq *door-pull* t)
 (setq *door-axis-up* nil)
+(setq *knob-axis-plus* nil)
 (setq *door-trajectory* nil)
 (setq *use-arm* :larm)
 
@@ -26,7 +27,7 @@
   (setq *door* (instance door :init *door-radius* (elt (send *cds-knob* :worldpos) 2)))
   (send (car (send *door* :links)) :locate (scale -1 (send *door* :end-coords :worldpos)))
   (send (car (send *door* :links)) :locate (send *pr2* :larm :end-coords :worldpos))
-  (setq *door-trajectory* (calc-door-trajectory *door-radius* *door-pull* *door-axis-up*))
+  (seoor-trajectory* (calc-door-trajectory *door-radius* *door-pull* *door-axis-up*))
   (send *irtviewer* :objects nil)
   (draw-trajectory *door-trajectory*)
   (send *irtviewer* :objects *pr2* *door*))
@@ -41,24 +42,30 @@
     res
     ))
 
-(defun rotate-knob ()
-  (send *pr2* :angle-vector (send *ri* :state :potentio-vector)) 
-  (let ((d 0) 
-	(c_handle (make-cascoords :pos (send *pr2* :larm :end-coords :worldpos)))
-	(c_hand (make-cascoords :coords (send *pr2* :larm :end-coords :copy-worldcoords)))
+(defun rotate-knob (tgt-deg &optional (r *knob-radius*) (use-arm *use-arm*) &key (:axis-plus (axis-p nil)))
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (let ((d 0)
+	(cds-gripper (make-cascoords :coords (send *cds-knob-init* :copy-worldcoords)))
+	cds-knob 
 	(av-seq nil))
-    (send c_handle :assoc c_hand)
-    (send *irtviewer* :objects c_handle c_hand)
+    ;;make x-axis of cds-knob become axis of knob
+    (setq cds-knob (make-cascoords :coords (send cds-gripper :copy-worldcoords)))
+    (send cds-knob :rotate (deg2rad 90) :y)	  
+    ;;if z-axis of gripper point left
+    (if (> (elt (matrix-row (transpose (send cds_gripper :rot)) 2) 1) 0) 
+	(send cds-knob :rotate (deg2rad 90) :z)
+      (send cds-knob :rotate (deg2rad -90) :z))
+    (send cds-knob :translate (float-vector 0.0 (if (axis-p) r (* -1 *knob-radius*))))
+    ;;finished seting coords
+    (send cds-knob :assoc cds-gripper)
+      ;; (send *irtviewer* :objects c_handle c_hand)
     (while (< d tgt-deg)
-      (setq d (+ d 1))
-      (send c_handle :rotate (deg2rad -1) :x :world)
-      (send c_handle :translate (float-vector 0.0 0.0 (- (* r (sin (deg2rad 1))))))
-      (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords) :rotation-axis t)
+      (incf d)
+      (send cds-knob :rotate (deg2rad (if (axis-p) 1 -1) :x :world))
+      (send cds-knob :translate (float-vector 0.0 0.0 (- (* r (sin (deg2rad 1))))))
+      (send *pr2* use-arm :inverse-kinematics (send c_hand :copy-worldcoords) :rotation-axis t)
       (setq av-seq (append av-seq (list (send *pr2* :angle-vector))))
       (send *irtviewer* :draw-objects :flush t))
     (send *ri* :angle-vector-sequence av-seq 100)
+    (send *ri* :wait-interpolation)
     ))
-
-(defun pull-door-one-action 
-  (let 
-  
