@@ -46,6 +46,7 @@
       (send *irtviewer* :draw-objects :flush t))))
 
 (defun obtain-real-angle-from-trajectory (p-lis)
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let ((robot-arm-pos (send *pr2* :larm :end-coords :worldpos))
 	max-n dis temp)
     (dotimes (i (length p-lis))

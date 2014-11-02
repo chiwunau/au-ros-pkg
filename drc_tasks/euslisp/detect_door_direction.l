@@ -1,4 +1,4 @@
-(defun test-door-direction (r)
+(defun test-door-direction (r) ;;by pushing or pulling 10 cm and see the displacement of av
   (let ((av-org (send *ri* :state :potentio-vector))
 	cds_world cds_tgt av-seq d res move_dist dis)
     (dotimes (i 2)
@@ -51,15 +51,15 @@
 	av-diff0
 	av-diff1)
     (dotimes (i 2)
-      (send *pr2* pre-av)      
+      (send *pr2* :angle-vector pre-av)      
       (if (= i 0)
 	  (progn
-	    (rotate-knob 5 :axis-plus t)
+	    (rotate-knob 5 t)
 	    (setq av-diff0 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector)))))
 	(progn
-	  (rotate-knob 5 :axis-plus nil)
+	  (rotate-knob 5 nil)
 	  (setq av-diff1 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector))))))
-      (send *ri* pre-av 500))
+      (send *ri* :angle-vector pre-av 500))
     
     (if (< av-diff0 av-diff1)
 	(progn
@@ -70,8 +70,6 @@
 	(ros::ros-warn "knob-axis: minus")
 	(setq *knob-axis-plus* nil)
 	(return-from test-knob-direction nil)))))
-
-
 	
       
 
