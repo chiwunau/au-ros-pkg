@@ -51,15 +51,18 @@
 	cds-knob 
 	(av-seq nil))
     (print r)
+
     ;;make x-axis of cds-knob become axis of knob
     (setq cds-knob (make-cascoords :coords (send cds-gripper :copy-worldcoords)))
-    (send cds-knob :rotate (deg2rad 90) :y)
     ;;if z-axis of gripper point left
     (if (> (elt (matrix-row (transpose (send cds-gripper :rot)) 2) 1) 0) 
-	(send cds-knob :rotate (deg2rad 90) :z)
-      (send cds-knob :rotate (deg2rad -90) :z))
+	(progn
+	  (send cds-knob :rotate (deg2rad 90) :y)
+	  (send cds-knob :rotate (deg2rad 90) :z))
+      (send cds-knob :rotate (deg2rad -90) :x))
     (send cds-knob :translate (float-vector 0.0 (if axis-p r (* -1 r)) 0.0))
     ;;finished seting coords
+
     (send cds-knob :assoc cds-gripper)
       ;; (send *irtviewer* :objects c_handle c_hand)
     (while (< d tgt-deg)
