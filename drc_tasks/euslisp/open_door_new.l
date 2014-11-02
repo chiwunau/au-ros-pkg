@@ -44,7 +44,7 @@
     res
     ))
 
-(defun rotate-knob (tgt-deg axis-p &optional (r *knob-radius*) (use-arm *use-arm*))
+(defun rotate-knob (tgt-deg axis-p &optional (play-back nil) (r *knob-radius*) (use-arm *use-arm*))
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let ((d 0)
 	(cds-gripper (make-cascoords :coords(send *pr2* :larm :end-coords :copy-worldcoords)))
@@ -71,6 +71,13 @@
       (send *irtviewer* :draw-objects :flush t))
     (send *ri* :angle-vector-sequence av-seq 100)
     (send *ri* :wait-interpolation)
+    (if play-back
+	(progn
+	  (reverse av-seq)
+	  (send *ri* :angle-vector-sequence av-seq 100)
+	  (send *ri* :wait-interpolation)
+	  ))
+    (send *pr2* use-arm :end-coords :copy-worldcoords)
     ))
 
 

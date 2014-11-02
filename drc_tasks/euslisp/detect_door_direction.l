@@ -44,24 +44,28 @@
   (ros::ros-warn "failed to detect direction of door")
   ))
 
-(defun test-knob-direction ()
+(defun test-knob-direction (&optional (use-arm *use-arm*))
   (let (cds_gripper
 	cds_knob
 	(pre-av (send *ri* :state :potentio-vector))
-	av-diff0
-	av-diff1)
+	pos-diff0
+	pos-diff1)
+
     (dotimes (i 2)
       (send *pr2* :angle-vector pre-av)      
       (if (= i 0)
 	  (progn
-	    (rotate-knob 10 t)
-	    (setq av-diff0 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector)))))
+	    (setq tgt-pos (rotate-knob 10 t))
+	    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+	    (setq pos-diff0 (norm (v- (send *pr2* use-arm :end-coords :worldpos) (send tgt-pos :worldpos)))))
 	(progn
-	  (rotate-knob 10 nil)
-	  (setq av-diff1 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector))))))
-      (send *ri* :angle-vector pre-av 500))
-    
-    (if (< av-diff0 av-diff1)
+	  (setq tgt-pos (rotate-knob 10 nil))
+	  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+	  (setq pos-diff1 (norm (v- (send *pr2* use-arm :end-coords :worldpos) (send tgt-pos :worldpos))))))
+	
+      (send *ri* :angle-vector pre-av 500)
+      (send *ri* :wait-interpolation))
+    (if (< pos-diff0 pos-diff1)
 	(progn
 	  (ros::ros-warn "knob-axis: plus")
 	  (setq *knob-axis-plus* t)
