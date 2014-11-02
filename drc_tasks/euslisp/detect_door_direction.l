@@ -54,10 +54,10 @@
       (send *pr2* :angle-vector pre-av)      
       (if (= i 0)
 	  (progn
-	    (rotate-knob 5 t)
+	    (rotate-knob 10 t)
 	    (setq av-diff0 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector)))))
 	(progn
-	  (rotate-knob 5 nil)
+	  (rotate-knob 10 nil)
 	  (setq av-diff1 (norm (v- (send *ri* :state :potentio-vector) (send *pr2* :angle-vector))))))
       (send *ri* :angle-vector pre-av 500))
     
