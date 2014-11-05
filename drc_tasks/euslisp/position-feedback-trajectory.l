@@ -9,8 +9,18 @@
 (defparameter *pull* t)
 (ros::rate 20)
 (setq cds-seq nil)
-(setq ang-seq (calc-transformation-from-error))
+(setq ang-seq nil)
+(setq dif-v-seq nil)
 (setq full-av-seq nil)
+
+
+(defun init-param ()
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (setq *pr2-gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
+  (setq *ri-gripper-cds-pre* (send *pr2-gripper-cds-st* :copy-worldcoords))
+  (setq *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds-st*)))
+  (setq *pull* t))
+
 (defun calc-transformation-from-error ()
   (let* ((diff-cds (make-coords))
 	 (ri-gripper-cds (send *pr2* *use-arm* :end-coords :copy-worldcoords))
@@ -19,25 +29,35 @@
 	 (ang-z (vector-angle #f(1 0 0) v-proj #f(0 0 1)))
 	 ang-y)
     (cond ((>= ang-z (/ Pi 2.0))
+	   (setq *pull* t)
 	   (send diff-cds :rotate (+ (* -1 Pi) ang-z) :z))
 	  ((<= ang-z (/ Pi -2.0))
+	   (setq *pull* t)
 	   (send diff-cds :rotate (+ Pi ang-z) :z))
-	  ((and (>= ang-z 0) (< (/ Pi 2.0)))
+	  ((and (>= ang-z 0) (< ang-z (/ Pi 2.0)))
 	   (setq *pull* nil)
 	   (send diff-cds :rotate ang-z :z))
-	  ((and (< ang-z 0) (> (/ Pi -2.0)))
+	  ((and (< ang-z 0) (> ang-z (/ Pi -2.0)))
 	   (setq *pull* nil)
-	   (send diff-cds :rotate ang-z :z))
-
+	   (send diff-cds :rotate (* -1 ang-z) :z))
+	  (t
+	   ))
     (setq dif-v (send diff-cds :inverse-transform-vector dif-v))
     (setq ang-y (vector-angle #f(1 0 0) dif-v #f(0 1 0)))
-    (if (> ang-y 0)
-    	(send diff-cds :rotate (+ (* -1 Pi) ang-y) :y)
-      (send diff-cds :rotate (+ Pi ang-y) :y))
-    (print diff-cds)
+
+    (cond ((>= ang-y (/ Pi 2.0))
+	   (send diff-cds :rotate (+ (* -1 Pi) ang-y) :y))
+	  ((<= ang-y (/ Pi -2.0))
+	   (send diff-cds :rotate (+ Pi ang-y) :y))
+	  ((and (>= ang-y 0) (< ang-y (/ Pi 2.0)))
+	   (send diff-cds :rotate ang-y :y))
+	  ((and (< ang-y 0) (> ang-y (/ Pi -2.0)))
+	   (send diff-cds :rotate (* -1 ang-y) :y))
+	  (t
+	   ))
+    (push dif-v dif-v-seq)
     (push diff-cds cds-seq)
     (push (list ang-z ang-y) ang-seq)
-    (print ang-seq)
     diff-cds
     ))
 
@@ -48,15 +68,15 @@
 	 (cds-recent (send cds-st :copy-worldcoords))
 	 (cds-trans *cds-trans*)
 	 (st-time (ros::time+ (ros::time-now) (ros::time 0.5)))
-	 (check-time (ros::time+ st-time (ros::time 0.3))))
+	 check-time)
 
     ;;move one time when starting
     (dotimes (i 5)
       (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
       (push (send *pr2* :angle-vector) av-seq)
-      (send cds-recent :translate #f(-10 0 0)))
+      (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
     (send *ri* :angle-vector-sequence (reverse av-seq) 200 :default-controller st-time)
-
+    
     (setq check-time (ros::time+ st-time (ros::time 0.6)))
     (setq st-time (ros::time+ st-time (ros::time 1.25)))
     
@@ -69,22 +89,21 @@
 	(send cds-recent :replace-pos (send *pr2* *use-arm* :end-coords :worldpos))
 	(send cds-recent :transform cds-trans)
 	;;(setq cds-recent (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-	(send cds-recent :translate #f(-20 0 0))
-
+	(send cds-recent :translate (float-vector (* (if *pull* -1 1) 20) 0 0))
+	
 	(setq *ri-gripper-cds-pre* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
 	(setq av-seq nil)
 	(dotimes (i 5)
-	  (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis nil)
+	  (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
 	  (push (send *pr2* :angle-vector) av-seq)
-	  (send cds-recent :translate #f(-10 0 0)))
+	  (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
 	(print (length av-seq))
 	(send *ri* :angle-vector-sequence (reverse av-seq) 200 :default-controller st-time)
 	
 	(setq check-time (ros::time+ st-time (ros::time 0.6)))
-	(setq st-time (ros::time+ st-time (ros::time 1.25)))
-
-	)
+	(setq st-time (ros::time+ st-time (ros::time 1.25))))
       
+      (print *pull*)
       (ros::sleep)
       )))
  
