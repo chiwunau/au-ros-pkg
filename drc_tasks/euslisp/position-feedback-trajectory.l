@@ -1,10 +1,10 @@
 (ros::rate 10)
 
 
-(setq *pr2-gripper-cds* (send *ri* *use-arm* :end-coords :copy-wroldcoords))
-(setq *ri-gripper-cds-pre* (send *pr2-gripper-cds* :copy-wroldcoords))
+(defvar *pr2-gripper-cds-st* (send *ri* *use-arm* :end-coords :copy-worldcoords))
+(defvar *ri-gripper-cds-pre* (send *pr2-gripper-cds* :copy-wroldcoords))
 
-(setq *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds*)))
+(defvar *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds-st*)))
 
 
 (defun calc-transformation-from-error ()
@@ -26,17 +26,42 @@
     diff-cds
     ))
 
-(let (tgt-cds-seq
-      av-seq)
+(let* (tgt-cds-seq
+      av-seq
+      (cds-st (send *pr2-gripper-cds-st* :copy-worldcoords))
+      cds-recent
+      (st-time (ros::time+ (ros::time-now) (ros::time 0.5)))
+      (check-time (ros::time+ st-time (ros::time 0.3))))
+  
   (while (ros::ok)
-    (when (checktime)
+    (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0)
       (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
       (setq cds-trans :transform (calc-transformation-from-error))
+      (setq cds-recent (send *pr2-gripper-cds-st* :copy-worldcoords))
+      (send cds-recent :replace-pos (send *pr2* *use-arm* :endcoords :worldpos))
+      (send cds-recent :transform cds-trans)
 
-      (dotimes (i 5)
-	      (let ((tgt send cds-gripper
-			 (send *pr2* *use-arm* :inverse-kinematics (
+      (send cds-recent :translate #f(-10 0 0))
       
+      (setq av-seq nil)
+      (dotimes (i 5)
+	(send cds-recent :translate #f(-10 0 0))
+	(send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
+	(push (send *pr2* :angle-vector) av-seq))
+
+      (setq *ri-gripper-cds-pre* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
+      
+      (send *ri* :angle-vector-sequence (reverse av-seq) 100 :default-controller st-time)
+
+      (setq st-time (ros::time+ st-time (ros::time 0.5)))
+      (setq check-time (ros::time+ st-time (ros::time 0.3)))
+      ))
+      
+      
+      
+	
+
+	
     
   
   
