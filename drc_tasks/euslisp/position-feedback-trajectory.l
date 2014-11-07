@@ -9,7 +9,8 @@
 (defparameter *ri-gripper-cds-pre* (send *pr2-gripper-cds-st* :copy-worldcoords))
 (defparameter *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds-st*)))
 (defparameter *pull* t)
-(defparameter *base-cds-st* (make-coords))
+(defparameter *base-trans* (make-coords))
+
 
 (ros::rate 20)
 (setq cds-seq nil)
@@ -30,6 +31,12 @@
   (setq full-av-seq nil)
   (setq dif-cds-seq nil)
   )
+
+(defun reset-base-trans ()
+  (let ((base-cds (send *pr2* :copy-worldcoords))
+	(gripper-pos-cds (make-coords :pos (send gripper-cds-st :worldpos) :rot (send base-cds :worldrot))))
+    (setq *base-trans* (send gripper-pos-cds :transformation base-cds))))
+
 
 (defun calc-transformation-from-error ()
   (let* ((diff-cds (make-coords))
@@ -71,7 +78,17 @@
     diff-cds
     ))
 
+(let ((base-cds (send *pr2* :copy-worldcoords))
+      (gripper-pos-cds (make-coords :pos (send gripper-cds-st :worldpos) :rot (send base-cds :worldrot))))
+  (setq *base-trans* (send gripper-pos-cds :transformation base-cds))))
+
 (defun adjust-bsae-location ()
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (let ((base-cds (send *pr2* :copy-worldcoords))
+	(gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot))))
+    (send base-cd
+	
+    
   
   
 (defun move-with-pos-fb ()
