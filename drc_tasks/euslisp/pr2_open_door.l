@@ -44,9 +44,9 @@
       (setq d (+ d 1))
       (send c_door :rotate (deg2rad -1) :z)
       (send c_door :translate (float-vector (- (* r (sin (deg2rad 1)))) 0.0 0.0))
-      (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords))
+      (setq ret (send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords)))
       ;; move base if ik unsolved or arm too close
-      (unless (and (> (norm (v- (send *pr2* :larm :end-coords :worldpos) (send *pr2* :worldpos))) 1100))
+      (unless (and ret (> (norm (v- (send *pr2* :larm :end-coords :worldpos) (send *pr2* :worldpos))) 1100))
 	(send *pr2* :larm :inverse-kinematics (send c_hand :copy-worldcoords))
       	(send *ri* :angle-vector-sequence av-seq 100)
       	(send *ri* :wait-interpolation)
