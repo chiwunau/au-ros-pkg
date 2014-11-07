@@ -10,6 +10,7 @@
 (defparameter *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds-st*)))
 (defparameter *pull* t)
 (defparameter *base-trans* (make-coords))
+(defparameter *base-cds-next* (make-coords))
 
 
 (ros::rate 20)
@@ -33,8 +34,9 @@
   )
 
 (defun reset-base-trans ()
-  (let ((base-cds (send *pr2* :copy-worldcoords))
-	(gripper-pos-cds (make-coords :pos (send gripper-cds-st :worldpos) :rot (send base-cds :worldrot))))
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+  (let* ((base-cds (send *pr2* :copy-worldcoords))
+	 (gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot))))
     (setq *base-trans* (send gripper-pos-cds :transformation base-cds))))
 
 
@@ -78,21 +80,83 @@
     diff-cds
     ))
 
-(let ((base-cds (send *pr2* :copy-worldcoords))
-      (gripper-pos-cds (make-coords :pos (send gripper-cds-st :worldpos) :rot (send base-cds :worldrot))))
-  (setq *base-trans* (send gripper-pos-cds :transformation base-cds))))
-
-(defun adjust-bsae-location ()
+(setq base-cds-seq nil)
+(defun adjust-base-location ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-  (let ((base-cds (send *pr2* :copy-worldcoords))
-	(gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot))))
-    (send base-cd
-	
-    
-  
-  
-(defun move-with-pos-fb ()
+  (let* ((base-cds-next (send *pr2* :copy-worldcoords))
+	(gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds-next :worldrot)))
+	(res nil)
+	(base-trans (send *base-trans* :copy-worldcoords)))
 
+    (dotimes (i 10)
+      (push base-cds-next base-cds-seq)
+      (setq base-cds-next (make-coords 
+			   :pos (float-vector 
+				 (elt (send (send (send gripper-pos-cds :copy-worldcoords) :transform base-trans) :pos) 0)
+				 (elt (send (send (send gripper-pos-cds :copy-worldcoords) :transform base-trans) :pos) 1)
+				 0.0)
+			   :rot (send gripper-pos-cds :worldrot)))
+      (setq res (check-ik-solvable base-cds-next))
+	    (if res (return))
+	    (send gripper-pos-cds :rotate (deg2rad -10) :z))
+
+      (if res
+	  (progn
+	    (setq *base-cds-next* base-cds-next)
+	    (move-base-arm)
+	    ;(reset-base-trans)
+	    (return-from adjust-base-location t))
+	(progn
+	  (ros::ros-warn "failed to calc next base location")
+	  (return-from adjust-base-location nil)))
+      )))
+
+
+(defun check-ik-solvable (tgt-cds)
+  (let* ((base-tgt (send tgt-cds :copy-worldcoords))
+	 (pr2-cds (send *pr2* :copy-worldcoords))
+	 ( pr2-av (send *pr2* :angle-vector))
+	 (gripper-tgt (send *pr2* *use-arm* :end-coords :copy-worldcoords)))
+    (send *pr2* :move-to base-tgt :world)
+    
+    (dotimes (i 5)
+      (unless (send *pr2* *use-arm* :inverse-kinematics gripper-tgt)
+	(return-from check-ik-solvable nil))
+      (send gripper-tgt :translate (float-vector (* (if *pull* -1 1) 20) 0 0)))
+    (send *pr2* :move-to pr2-cds :world)
+    (send *pr2* :angle-vector pr2-av)
+    t))
+
+
+
+
+
+(defun move-base-arm ()
+  (let* ((base-recent (send *pr2* :copy-worldcoords))
+	 (base-tgt (send *base-cds-next* :copy-worldcoords))
+	 (diff-cds (send base-recent :transformation base-tgt))
+	 (dif-v (send diff-cds :pos))
+	 (gripper-cds (send *pr2* *use-arm* :end-coords :copy-worldcoords))
+	 (move-time 2000)
+	 )
+
+    (send *pr2* :move-to base-tgt :world)
+    (send *pr2* *use-arm* :inverse-kinematics gripper-cds)
+    (let ((sttm (ros::time+ (ros::time-now) (ros::time 0.5))))
+      (send *ri* :angle-vector (send *pr2* :angle-vector)
+	    move-time :default-controller sttm)
+      (send *ri* :move-trajectory
+	    (/ (elt dif-v 0) move-time) (/ (elt dif-v 1)) (vector-angle #f(1 0 0) (matrix-row (send diff-cds :rot) 0) #f(0 0 1))
+	    move-time :start-time sttm :send-action t))))
+
+
+
+
+
+
+
+
+(defun move-arm-pos-fb ()
   (init-param)
   (let* (tgt-cds-seq
 	 (av-seq nil)
@@ -137,8 +201,8 @@
 	(dotimes (i 10)
 	  (unless (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
 	    (print "ending")
-	    (setq *pull* (not *pull*))
-	    (return-from start-moving))
+					;(setq *pull* (not *pull*))
+	    (return-from move-arm-pos-fb))
 	  (push (send *pr2* :angle-vector) av-seq)
 	  (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
 
@@ -148,9 +212,19 @@
 
       (ros::sleep)
       )))
-  
+
+(defun pr2-open-door ()
+  (send *pr2* :move-to (make-coords) :world)
+  (do-until-key
+   (send *irtviewer* :draw-objects :flush t)
+   (reset-base-trans)	   
+   (move-arm-pos-fb)
+   (print "adjust-base")
+   (unless (adjust-base-location)
+     (return))))
+
 
 ;; (send *ri* :angle-vector-sequence  (append (reverse (elt full-av-seq 0)) (reverse (elt full-av-seq 1))) 1500 :default-controller 0.5)
-;; (unix:usleep (* 1000 (+ 500 500)))
-;; ;;(send *ri* :cancel-angle-vector)
+  ;; (unix:usleep (* 1000 (+ 500 500)))
+  ;; ;;(send *ri* :cancel-angle-vector)
 ;; (send *ri* :angle-vector-sequence (append (reverse (elt full-av-seq 3)) (reverse (elt full-av-seq 4))) 500 :default-controller)
