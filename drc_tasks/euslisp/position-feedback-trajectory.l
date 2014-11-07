@@ -1,5 +1,5 @@
 (require "package://pr2eus/pr2-interface.l")
-
+(pr2-init)
 (ros::roseus "pr2_position_feedback_interaction")
 (unless (boundp '*irtviewer*) (make-irtviewer))
 (unless (boundp '*use-arm*) (defparameter *use-arm* :larm))
@@ -9,6 +9,8 @@
 (defparameter *ri-gripper-cds-pre* (send *pr2-gripper-cds-st* :copy-worldcoords))
 (defparameter *cds-trans* (make-coords :coords (send *ri-gripper-cds-pre* :transformation *pr2-gripper-cds-st*)))
 (defparameter *pull* t)
+(defparameter *base-cds-st* (make-coords))
+
 (ros::rate 20)
 (setq cds-seq nil)
 (setq dif-cds-seq nil)
@@ -69,7 +71,10 @@
     diff-cds
     ))
 
-(defun start-moving ()
+(defun adjust-bsae-location ()
+  
+  
+(defun move-with-pos-fb ()
 
   (init-param)
   (let* (tgt-cds-seq
@@ -82,19 +87,19 @@
 	 res)
     
     ;;move one time when starting
-    (dotimes (i 5)
+    (dotimes (i 10)
       (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
       (push (send *pr2* :angle-vector) av-seq)
       (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
     (send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
     (push av-seq full-av-seq)
-    (setq check-time (ros::time+ st-time (ros::time (* 2 0.6))))
+    (setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
     
     (while (ros::ok)
       (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0.0)
 	
-	(setq st-time (ros::time+ (ros::time-now) (ros::time (* 2 0.65))))
-	(setq check-time (ros::time+ st-time (ros::time (* 2 0.6))))
+	(setq st-time (ros::time+ (ros::time-now) (ros::time (* 4 0.65))))
+	(setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
 	(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
 	
 	(send cds-trans :transform (calc-transformation-from-error))
@@ -108,11 +113,11 @@
 	(setq *ri-gripper-cds-pre* (send cds-recent :copy-worldcoords))
 	
 	;;(setq cds-recent (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-	(send cds-recent :translate (float-vector (* (if *pull* -1 1) 20) 0 0))
+	(send cds-recent :translate (float-vector (* (if *pull* -1 1) (* 2 20)) 0 0))
 	
 
 	(setq av-seq nil)
-	(dotimes (i 5)
+	(dotimes (i 10)
 	  (unless (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
 	    (print "ending")
 	    (setq *pull* (not *pull*))
