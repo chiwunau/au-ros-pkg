@@ -1,3 +1,5 @@
+(require "package://pr2eus/pr2-interface.l")
+
 (ros::roseus "pr2_position_feedback_interaction")
 (unless (boundp '*irtviewer*) (make-irtviewer))
 (unless (boundp '*use-arm*) (defparameter *use-arm* :larm))
@@ -117,11 +119,11 @@
 	    (return-from start-moving))
 	  (push (send *pr2* :angle-vector) av-seq)
 	  (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
-	(print (length av-seq))
+
 	(send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
 	(push av-seq full-av-seq)	
 	)
-      (print *pull*)
+
       (ros::sleep)
       )))
   
