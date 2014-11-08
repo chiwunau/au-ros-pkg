@@ -1,5 +1,5 @@
-(require "package://pr2eus/pr2-interface.l")
-(pr2-init)
+;; (require "package://pr2eus/pr2-interface.l")
+;; (pr2-init)
 (ros::roseus "pr2_position_feedback_interaction")
 (unless (boundp '*irtviewer*) (make-irtviewer))
 (unless (boundp '*use-arm*) (defparameter *use-arm* :larm))
@@ -19,7 +19,6 @@
 (setq ang-seq nil)
 (setq dif-v-seq nil)
 (setq full-av-seq nil)
-
 
 (defun init-param ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
@@ -137,7 +136,7 @@
 	 (diff-cds (send base-recent :transformation base-tgt))
 	 (dif-v (send diff-cds :pos))
 	 (gripper-cds (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-	 (move-time 2000)
+	 (move-time 3000)
 	 )
 
     (send *pr2* :move-to base-tgt :world)
@@ -147,17 +146,12 @@
 	    move-time :default-controller sttm)
       (send *ri* :move-trajectory
 	    (/ (elt dif-v 0) move-time) (/ (elt dif-v 1)) (vector-angle #f(1 0 0) (matrix-row (send diff-cds :rot) 0) #f(0 0 1))
-	    move-time :start-time sttm :send-action t))))
-
-
-
-
-
-
+	    move-time :start-time sttm :send-action t)
+      (send *ri* :wait-interpolation))
+    ))
 
 
 (defun move-arm-pos-fb ()
-  (init-param)
   (let* (tgt-cds-seq
 	 (av-seq nil)
 	 (cds-st (send *pr2-gripper-cds-st* :copy-worldcoords))
@@ -172,15 +166,19 @@
       (send *pr2* *use-arm* :inverse-kinematics cds-recent :rotational-axis t)
       (push (send *pr2* :angle-vector) av-seq)
       (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
-    (send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
+    ;; (send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
+    (send *ri* :angle-vector-sequence (reverse av-seq) (list 500 200)  :default-controller st-time)
     (push av-seq full-av-seq)
-    (setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
+    ;; (setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
+    (setq check-time (ros::time+ st-time (ros::time 1.4)))
     
     (while (ros::ok)
       (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0.0)
 	
-	(setq st-time (ros::time+ (ros::time-now) (ros::time (* 4 0.65))))
-	(setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
+	;; (setq st-time (ros::time+ (ros::time-now) (ros::time (* 4 0.65))))
+	(setq st-time (ros::time+ (ros::time-now) (ros::time 2.35)))
+	;; (setq check-time (ros::time+ st-time (ros::time (* 4 0.6))))
+	(setq check-time (ros::time+ st-time (ros::time 1.4)))
 	(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
 	
 	(send cds-trans :transform (calc-transformation-from-error))
@@ -206,7 +204,8 @@
 	  (push (send *pr2* :angle-vector) av-seq)
 	  (send cds-recent :translate (float-vector (* (if *pull* -1 1) 10) 0 0)))
 
-	(send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
+	;; (send *ri* :angle-vector-sequence (reverse av-seq) (* 2 200) :default-controller st-time)
+	(send *ri* :angle-vector-sequence (reverse av-seq) (list 500 200) :default-controller st-time)
 	(push av-seq full-av-seq)	
 	)
 
@@ -216,8 +215,9 @@
 (defun pr2-open-door ()
   (send *pr2* :move-to (make-coords) :world)
   (do-until-key
+   (init-param)
+   (reset-base-trans)
    (send *irtviewer* :draw-objects :flush t)
-   (reset-base-trans)	   
    (move-arm-pos-fb)
    (print "adjust-base")
    (unless (adjust-base-location)
