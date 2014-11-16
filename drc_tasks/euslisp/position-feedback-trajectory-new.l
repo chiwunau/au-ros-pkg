@@ -57,7 +57,7 @@
 (defun adjust-base-location ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let* ((base-cds (send *pr2* :copy-worldcoords))
-	 (gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :copy-rot)))
+	 (gripper-pos-cds (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot)) :copy-worldcoords))
 	 (base-trans (send *base-trans* :copy-worldcoords))
 	 res)
 
@@ -104,7 +104,7 @@
 (defun move-object ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let*  ((obj-cds-st (send *obj-cds-st* :copy-worldcoords))
-	  (obj-cds-pre (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send obj-cds-st :copy-rot)) :copy-worldcoords))
+	  (obj-cds-pre (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send obj-cds-st :worldrot)) :copy-worldcoords))
 	  (obj-cds (make-coords :coords (send obj-cds-pre :copy-worldcoords)))
 	  (obj-trans (send *obj-trans* :copy-worldcoords))
 	  (av-seq nil)
@@ -192,7 +192,7 @@
 (defun update-base-trans ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let* ((base-cds (send *pr2* :copy-worldcoords))
-	 (gripper-pos-cds (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :copy-rot))))
+	 (gripper-pos-cds (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot)) :copy-worldcoords)))
     (setq *base-trans* (send gripper-pos-cds :transformation base-cds))))
 
 (defun hold-arm-move-base (tgt-cds)
