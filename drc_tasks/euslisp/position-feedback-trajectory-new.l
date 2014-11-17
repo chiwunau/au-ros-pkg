@@ -39,6 +39,9 @@
   (send *pr2* :move-to (make-coords) :world)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
+  (setq *base-trans* (make-coords))
+  (setq *obj-gripper-trans* (make-coords))
+
   (init-obj-cds)
   (update-base-trans)
   (setq cds-seq nil)
@@ -105,21 +108,27 @@
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let*  ((obj-cds-st (send *obj-cds-st* :copy-worldcoords))
 	  (obj-cds-pre (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send obj-cds-st :worldrot)) :copy-worldcoords))
-	  (obj-cds (make-coords :coords (send obj-cds-pre :copy-worldcoords)))
+	  obj-cds 
 	  (obj-trans (send *obj-trans* :copy-worldcoords))
 	  (av-seq nil)
 	  (st-time (ros::time+ (ros::time-now) (ros::time 1.0)))
 	  check-time
 	  res)
 
-	(print obj-cds-pre)
-	(print obj-cds)
+    ;;init coords
     (send *irtviewer* :objects obj-cds obj-cds-pre)
+     (send obj-cds-pre :transform obj-trans)
+    (setq obj-cds (send obj-cds-pre :copy-worldcoords))
+    ;;imaginary previous point, so that dist won't be too small at first time
+    (send obj-cds-pre :translate #f(-40.0 0 0)) 
+
+    (print obj-cds-pre)
+    (print obj-cds)
     ;;move one time when start
     (setq av-seq (calc-gripper-trajectory obj-cds 10))
     (unless av-seq
       (print "failed to solve ik, try to move base")
-      (return-from move-object t))
+      (return-from move-object t)) ;;;need to edit , move base may not work once enter new loop
     (send *ri* :angle-vector-sequence av-seq (list 500 200)  :default-controller st-time)
     (push av-seq full-av-seq)
     (setq check-time (ros::time+ st-time (ros::time 1.5)))
@@ -128,7 +137,7 @@
       (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0.0)
 	(print "start feedback")
 	(setq st-time (ros::time+ (ros::time-now) (ros::time 2.35)))
-	(setq check-time (ros::time+ st-time (ros::time 1.5)))
+	(setq check-time (ros::time+ st-time (ros::time 1.7)))
 	(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
 	(send *irtviewer* :draw-objects :flush t)
 	(send obj-cds :move-to (send *obj-cds-st* :copy-worldcoords) :world)
@@ -140,7 +149,7 @@
 	(let ((dist (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
 	      ans)
 	  (print dist)
-	  (when (< dist 35.0)
+	  (when (< dist 40.0)
 	    (format t "object is stuck, dist:~A~%" dist)
 	    (while (not (or (equal ans 'yes) (equal ans 'no)))
 	      (print "continute?(yes/no)")
@@ -152,22 +161,23 @@
 	(send *irtviewer* :draw-objects :flush t)
 	(send obj-trans :transform (calc-trans-from-pos-error obj-cds-pre obj-cds))
 	(push (send obj-trans :copy-worldcoords) obj-trans-seq)
-	(send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world)
 	
 	(send obj-cds :transform obj-trans)
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	
-	(send obj-cds :translate #f(30 0 0))
+	(send obj-cds :translate #f(50 0 0))
 	(setq av-seq (calc-gripper-trajectory obj-cds 10))
+	;;move base if gripper is too close to body
 	(let ((c (send *pr2* *use-arm* :end-coords :worldpos)))
 	  (unless (and 
 		   (> (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos))) 500) 
 		   av-seq)
-	  (print "failed to solve ik, try to move base")
+	  (print "failed to solve ik or gripper is too close, try to move base")
 	  (return-from move-object t)))
 
 	(send *ri* :angle-vector-sequence av-seq (list 500 200)  :default-controller st-time)
-	(push av-seq full-av-seq))
+	(push av-seq full-av-seq)
+	(send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world))
       (ros::sleep)
       ))))
 
