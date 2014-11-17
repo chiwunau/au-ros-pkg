@@ -156,7 +156,7 @@
 	(let (ans)
 	  (setq dist-from-pre (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
 	  (print dist-from-pre)
-	  (when (< dist-from-pre (/ (* fb-inr 10) 3.0))
+	  (when (< dist-from-pre (/ (* fb-inr 10) 2.5))
 	    (format t "object is stuck, dist-from-pre:~A~%" dist-from-pre)
 	    (while (not (or (equal ans 'yes) (equal ans 'no)))
 	      (print "continute?(yes/no)")
@@ -173,7 +173,7 @@
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	
 	;guess next start point ;;need to make better
-	(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
+	;(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
 	(send obj-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
 	;; (send obj-cds :translate (float-vector (+  (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)) 0 0))
 
