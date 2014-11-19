@@ -11,10 +11,10 @@
 (defparameter *base-trans* (make-coords))
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
-(defparameter *fb-inr* 10);cm
+(defparameter *fb-inr* 5);cm
 (defparameter *t-long* 500) ;msec
 (defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 1.0) ;sec
+(defparameter *t-gap* 100.0) ;msec
 
 (ros::rate 20)
 (setq obj-trans-seq nil)
@@ -43,9 +43,7 @@
   (send *pr2* :move-to (make-coords) :world)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-  (setq *base-trans* (make-coords))
-  (setq *obj-gripper-trans* (make-coords))
-
+  (setq *obj-trans* (make-coords))
   (init-obj-cds)
   (update-base-trans)
   (setq cds-seq nil)
@@ -102,7 +100,7 @@
     (send obj-cds :transform *obj-trans*)
     
     (send *pr2* :move-to base-tgt :world)
-    (unless (calc-gripper-trajectory obj-cds 5)
+    (unless (calc-gripper-trajectory obj-cds (/ *fb-inv* 2)))
       (return-from check-ik-solvable-at-location nil))
     (send *pr2* :move-to pr2-cds :world)
     (send *pr2* :angle-vector pr2-av)
@@ -133,7 +131,7 @@
     ;; (print obj-cds-pre)
     ;; (print obj-cds)
     ;;move one time when start
-    (setq av-seq (calc-gripper-trajectory obj-cds 10))
+    (setq av-seq (calc-gripper-trajectory obj-cds *fb-inr*))
     (unless av-seq
       (print "failed to solve ik, try to move base")
       (return-from move-object t)) ;;;need to edit , move base may not work once enter new loop
@@ -145,7 +143,7 @@
       (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0.0)
 	(format t "real check-time:~A~%" (ros::time-now))
 	(print "start feedback")
-	(setq st-time (ros::time+ (ros::time-now) (ros::time (+ (* fb-inr (/ t-short 1000) 0.5) t-gap))))
+	(setq st-time (ros::time+ (ros::time-now) (ros::time (+ (* fb-inr (/ t-short 1000.0) 0.5) (/ t-gap 1000.0)))))
 	(setq check-time (ros::time+ st-time (ros::time (+ (/ t-long 1000.0) (* fb-inr (/ t-short 1000.0) 0.5)))))
 	
 	(format t "set st-tiim:~A check-time:~A~%" st-time check-time)
@@ -177,11 +175,11 @@
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	
 	;guess next start point ;;need to make better
-	;(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
+	(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
 	(send obj-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
 	;; (send obj-cds :translate (float-vector (+  (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)) 0 0))
 
-	(setq av-seq (calc-gripper-trajectory obj-cds 10))
+	(setq av-seq (calc-gripper-trajectory obj-cds *fb-inr*))
 	;;move base if gripper is too close to body
 	(let ((c (send *pr2* *use-arm* :end-coords :worldpos)))
 	  (unless (and 
@@ -260,17 +258,21 @@
     (push (float-vector ang-z ang-y) ang-seq)
 
     (setq k-gain (* 0.45 1.5))
-    (setq i-gain (/ 3.5  1.2))
-    (setq p-factor (scale k-gain (car ang-seq)))
-    (let (sum)
-      (dolist (ang (cdr ang-seq))
+    (setq i-gain (/ (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0)  1.2))
+    ;; (setq k-gain 0.5)
+    ;; (setq i-gain 1000000)
+
+    (setq p-factor (car ang-seq))
+    (let ((sum #f(0 0)))
+      (dolist (ang ang-seq)
 	(setq sum (v+ sum ang)))
+      (print sum)
       (setq i-factor (scale (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) sum)))
     
     (send output-trans :rotate (* k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
     (send output-trans :rotate (* k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
-    ;;diff-cds))
-    output-trans))
+    ;; diff-cds))
+     output-trans))
     
 
 
