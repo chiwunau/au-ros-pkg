@@ -11,6 +11,10 @@
 (defparameter *base-trans* (make-coords))
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
+(defparameter *fb-inr* 10);cm
+(defparameter *t-long* 500) ;msec
+(defparameter *t-short* 200) ;msec
+(defparameter *t-gap* 1.0) ;sec
 
 (ros::rate 20)
 (setq obj-trans-seq nil)
@@ -115,10 +119,10 @@
 	  check-time
 	  res
 	  dist-from-pre
-	  (fb-inr 10);cm
-	  (t-long 500) ;msec
-	  (t-short 200) ;msec
-	  (t-gap 1.0)) ;sec
+	  (fb-inr *fb-inr*);cm
+	  (t-long *t-long*) ;msec
+	  (t-short *t-short*) ;msec
+	  (t-gap *t-gap*)) ;sec
     ;;init coords
     (send *irtviewer* :objects obj-cds obj-cds-pre)
     (send obj-cds-pre :transform obj-trans)
@@ -237,39 +241,36 @@
 
 (defun calc-trans-from-pos-error (pre-cds cds)
   (let* ((diff-cds (make-coords))
+	 (output-trans (make-coords))
 	 (dif-v (send (send pre-cds :transformation cds) :pos))
 	 (v-proj (float-vector (elt dif-v 0) (elt dif-v 1) 0.0))
 	 (ang-z (vector-angle #f(1 0 0) v-proj #f(0 0 1)))
-	 ang-y)
-    ;; (cond ((>= ang-z (/ Pi 2.0))
-    ;; 	   (send diff-cds :rotate (+ (* -1 Pi) ang-z) :z))
-    ;; 	  ((<= ang-z (/ Pi -2.0))
-    ;; 	   (send diff-cds :rotate (+ Pi ang-z) :z))
-    ;; 	  ((and (>= ang-z 0) (< ang-z (/ Pi 2.0)))
-    ;; 	   (send diff-cds :rotate (* (if *pull* 1 -1) ang-z) :z))
-    ;; 	  ((and (< ang-z 0) (> ang-z (/ Pi -2.0)))
-    ;; 	   (send diff-cds :rotate (* (if *pull* -1 1) ang-z) :z))
-    ;; 	  (t
-    ;; 	   ))
+	 ang-y
+	 k-gain
+	 i-gain
+	 p-factor
+	 i-factor)
+    
     (send diff-cds :rotate ang-z :z)
     (setq dif-v (send diff-cds :inverse-transform-vector dif-v))
     (setq ang-y (vector-angle #f(1 0 0) dif-v #f(0 1 0)))
-
-    ;; (cond ((>= ang-y (/ Pi 2.0)) 
-    ;; 	   (send diff-cds :rotate (+ (* -1 Pi) ang-y) :y))
-    ;; 	  ((<= ang-y (/ Pi -2.0))
-    ;; 	   (send diff-cds :rotate (+ Pi ang-y) :y))
-    ;; 	  ((and (>= ang-y 0) (< ang-y (/ Pi 2.0)))
-    ;; 	   (send diff-cds :rotate ang-y :y))
-    ;; 	  ((and (< ang-y 0) (> ang-y (/ Pi -2.0)))
-    ;; 	   (send diff-cds :rotate (* -1 ang-y) :y))
-    ;; 	  (t
-    ;; 	   ))
     (send diff-cds :rotate ang-y :y)
     (push dif-v dif-v-seq)
     (push diff-cds dif-cds-seq)
-    (push (list ang-z ang-y) ang-seq)
-    diff-cds))
+    (push (float-vector ang-z ang-y) ang-seq)
+
+    (setq k-gain (* 0.45 1.5))
+    (setq i-gain (/ 3.5  1.2))
+    (setq p-factor (scale k-gain (car ang-seq)))
+    (let (sum)
+      (dolist (ang (cdr ang-seq))
+	(setq sum (v+ sum ang)))
+      (setq i-factor (scale (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) sum)))
+    
+    (send output-trans :rotate (* k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
+    (send output-trans :rotate (* k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
+    ;;diff-cds))
+    output-trans))
     
 
 
