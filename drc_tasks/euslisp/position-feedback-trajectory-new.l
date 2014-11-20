@@ -11,12 +11,18 @@
 (defparameter *base-trans* (make-coords))
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
+(defparameter *obj-cds-pre* (make-coords))
 (defparameter *fb-inr* 5);cm
 (defparameter *t-long* 500) ;msec
 (defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 100.0) ;msec
+(defparameter *t-gap* 300.0) ;msec
+(defparameter *k-gain-f* 1.2)
+(defparameter *i-gain-f* 1.15)
 
-(ros::rate 20)
+(setq hoge-av #f(100.414 23.6311 57.2893 -0.408905 -117.46 0.004609 -5.79251 -0.000154 -31.1512 45.5591 -85.6182 -82.7801 37.6429 -5.72958 18.461 -1.29946 -21.2682))
+
+
+(ros::rate 50)
 (setq obj-trans-seq nil)
 (setq dif-cds-seq nil)
 (setq ang-seq nil)
@@ -24,6 +30,7 @@
 (setq full-av-seq nil)
 (setq *base-cds-seq* nil)
 (setq *pull* t)
+
 (defun pr2-open-door ()
   (init-param)
   (do-until-key
@@ -45,6 +52,8 @@
   (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
   (setq *obj-trans* (make-coords))
   (init-obj-cds)
+  (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
+  (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
   (update-base-trans)
   (setq cds-seq nil)
   (setq ang-seq nil)
@@ -65,8 +74,8 @@
 	 (gripper-pos-cds (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot)) :copy-worldcoords))
 	 (base-trans (send *base-trans* :copy-worldcoords))
 	 res)
-
     (dotimes (i 10)
+      (send *irtviewer* :draw-objects :flush t)
       (push base-cds *base-cds-seq*)
       (setq base-cds (make-coords 
 		      :pos (float-vector 
@@ -76,17 +85,18 @@
 		      :rot (send gripper-pos-cds :copy-rot)))
       (setq res (check-ik-solvable-at-location base-cds))
       (send *irtviewer* :draw-objects :flush t)
-	    (if res (return))
-	    (send gripper-pos-cds :rotate (deg2rad -10) :z));;need edit for both direction
-      (if res
-	  (progn
-	    (hold-arm-move-base base-cds)
-	    (send *ri* :wait-interpolation)
-	    (update-base-trans)
-	    (return-from adjust-base-location t))
+      (if res (return))
+      (let ((ang (vector-angle (matrix-row (send *obj-cds-st* :worldrot) 0)  (matrix-row (send *obj-cds-pre* :rot) 0) #f(0 0 1))))
+	(send gripper-pos-cds :rotate (deg2rad (if (>= ang 0.0) 10 -10)) :z)));;need edit for both direction
+    (if res
 	(progn
-	  (ros::ros-warn "ik-check filed at all candidate location")
-	  (return-from adjust-base-location nil)))
+	  (hold-arm-move-base base-cds)
+	  (send *ri* :wait-interpolation)
+	  (update-base-trans)
+	  (return-from adjust-base-location t))
+      (progn
+	(ros::ros-warn "ik-check filed at all candidate location")
+	(return-from adjust-base-location nil)))
       ))
 
 (defun check-ik-solvable-at-location (tgt-cds)
@@ -100,7 +110,9 @@
     (send obj-cds :transform *obj-trans*)
     
     (send *pr2* :move-to base-tgt :world)
-    (unless (calc-gripper-trajectory obj-cds (/ *fb-inv* 2)))
+    (unless (calc-gripper-trajectory obj-cds (/ *fb-inr* 2))
+      (send *pr2* :move-to pr2-cds :world)
+      (send *pr2* :angle-vector pr2-av)
       (return-from check-ik-solvable-at-location nil))
     (send *pr2* :move-to pr2-cds :world)
     (send *pr2* :angle-vector pr2-av)
@@ -109,8 +121,8 @@
 (defun move-object ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (let*  ((obj-cds-st (send *obj-cds-st* :copy-worldcoords))
-	  (obj-cds-pre (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send obj-cds-st :worldrot)) :copy-worldcoords))
-	  obj-cds 
+	  (obj-cds-pre (send *obj-cds-pre* :copy-worldcoords))
+	  (obj-cds (make-coords))
 	  (obj-trans (send *obj-trans* :copy-worldcoords))
 	  (av-seq nil)
 	  (st-time (ros::time+ (ros::time-now) (ros::time 1.0)))
@@ -122,12 +134,13 @@
 	  (t-short *t-short*) ;msec
 	  (t-gap *t-gap*)) ;sec
     ;;init coords
-    (send *irtviewer* :objects obj-cds obj-cds-pre)
-    (send obj-cds-pre :transform obj-trans)
-    (setq obj-cds (send obj-cds-pre :copy-worldcoords))
+    ;(send *irtviewer* :objects obj-cds obj-cds-pre)
+    (send *irtviewer* :objects (send obj-cds :copy-worldcoords))
+    ;(send obj-cds-pre :transform obj-trans)
+    (send obj-cds :move-to (send obj-cds-pre :copy-worldcoords) :world)
     ;;imaginary previous point, so that dist won't be too small at first time
-    (send obj-cds-pre :translate (float-vector (* -1 fb-inr 0.5 10) 0 0))
-
+    ;;(send obj-cds-pre :translate (float-vector (* -1 fb-inr 0.5 10) 0 0))
+    (send obj-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
     ;; (print obj-cds-pre)
     ;; (print obj-cds)
     ;;move one time when start
@@ -148,7 +161,6 @@
 	
 	(format t "set st-tiim:~A check-time:~A~%" st-time check-time)
 	(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-	(send *irtviewer* :draw-objects :flush t)
 	(send obj-cds :move-to (send *obj-cds-st* :copy-worldcoords) :world)
 	(send obj-cds :replace-pos (send *pr2* *use-arm* :end-coords :worldpos))
 
@@ -167,15 +179,21 @@
 		(return-from move-object t)
 	      (return-from move-object nil)))))
 		
-	(send *irtviewer* :draw-objects :flush t)
 	(send obj-trans :transform (calc-trans-from-pos-error obj-cds-pre obj-cds))
 	(push (send obj-trans :copy-worldcoords) obj-trans-seq)
 	
 	(send obj-cds :transform obj-trans)
+	(let ((cube (make-cube 30 30 30)))
+	  (send cube :set-color :red)
+	  (send cube :move-to (send obj-cds :copy-worldcoords))
+	  (send *irtviewer* :objects cube (send obj-cds :copy-worldcoords)))
+	(send *irtviewer* :draw-objects :flush t)
+
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
-	
+	(send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
 	;guess next start point ;;need to make better
 	(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
+	;; (send obj-cds :translate (float-vector (* dist-from-pre 0.5) 0 0))
 	(send obj-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
 	;; (send obj-cds :translate (float-vector (+  (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)) 0 0))
 
@@ -200,7 +218,7 @@
 	 (gripper-cds (make-cascoords :coords c))
 	av-seq)
     
-    (send *irtviewer* :objects obj-cds)
+    ;;(send *irtviewer* :objects obj-cds)
     (send obj-cds :assoc gripper-cds)
     (dotimes (i (+ d 1))
       (send *irtviewer* :draw-objects :flush t)
@@ -257,8 +275,8 @@
     (push diff-cds dif-cds-seq)
     (push (float-vector ang-z ang-y) ang-seq)
 
-    (setq k-gain (* 0.45 1.5))
-    (setq i-gain (/ (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0)  1.2))
+    (setq k-gain (* 0.45 *k-gain-f*))
+    (setq i-gain (* (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) *k-gain-f*))
     ;; (setq k-gain 0.5)
     ;; (setq i-gain 1000000)
 
