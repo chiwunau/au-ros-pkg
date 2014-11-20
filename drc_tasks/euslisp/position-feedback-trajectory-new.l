@@ -15,9 +15,9 @@
 (defparameter *fb-inr* 5);cm
 (defparameter *t-long* 300) ;msec
 (defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 250.0) ;msec
-(defparameter *k-gain-f* 1.2)
-(defparameter *i-gain-f* 1.15)
+(defparameter *t-gap* 0.0) ;msec
+(defparameter *k-gain-f* 0.8)
+(defparameter *i-gain-f* 0.8)
 ;; (defparameter *k-gain-f* 0.00001)
 ;; (defparameter *i-gain-f* 0.00001)
 
