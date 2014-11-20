@@ -13,13 +13,13 @@
 (defparameter *obj-cds-st* nil)
 (defparameter *obj-cds-pre* (make-coords))
 (defparameter *fb-inr* 5);cm
-(defparameter *t-long* 500) ;msec
+(defparameter *t-long* 300) ;msec
 (defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 300.0) ;msec
-;; (defparameter *k-gain-f* 1.2)
-;; (defparameter *i-gain-f* 1.15)
-(defparameter *k-gain-f* 0.01)
-(defparameter *i-gain-f* 0.01)
+(defparameter *t-gap* 250.0) ;msec
+(defparameter *k-gain-f* 1.2)
+(defparameter *i-gain-f* 1.15)
+;; (defparameter *k-gain-f* 0.00001)
+;; (defparameter *i-gain-f* 0.00001)
 
 (setq hoge-av #f(100.414 23.6311 57.2893 -0.408905 -117.46 0.004609 -5.79251 -0.000154 -31.1512 45.5591 -85.6182 -82.7801 37.6429 -5.72958 18.461 -1.29946 -21.2682))
 
@@ -32,6 +32,7 @@
 (setq full-av-seq nil)
 (setq *base-cds-seq* nil)
 (setq *pull* t)
+(setq cube-obj-pre nil)
 
 (defun pr2-open-door ()
   (init-param)
@@ -62,7 +63,11 @@
   (setq dif-v-seq nil)
   (setq full-av-seq nil)
   (setq dif-cds-seq nil)
-  (send *irtviewer* :objects (list *pr2*)))
+
+  (setq cube-obj-pre (make-cube 40 40 40))
+  (send cube-obj-pre :set-color :blue)
+  (send cube-obj-pre :move-to *obj-cds-pre* :world)
+  (send *irtviewer* :objects (list *pr2* cube-obj-pre)))
 
 (defun init-obj-cds ()
   (setq *obj-cds-st* (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :rotate (deg2rad (if *pull* 180 0)) :z))
@@ -137,24 +142,8 @@
 	  (t-short *t-short*) ;msec
 	  (t-gap *t-gap*)) ;sec
     ;;init coords
-    ;;(send *irtviewer* :objects obj-cds obj-cds-pre)
+
     (send *irtviewer* :objects (send obj-cds :copy-worldcoords))
-    ;;(send obj-cds-pre :transform obj-trans)
-    ;;(send obj-cds :move-to (send obj-cds-pre :copy-worldcoords) :world)
-    ;;imaginary previous point, so that dist won't be too small at first time
-    ;;(send obj-cds-pre :translate (float-vector (* -1 fb-inr 0.5 10) 0 0))
-    ;;(send obj-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
-    (print obj-cds-pre)
-    (print obj-cds)
-    ;;move one time when start
-    ;; (setq av-seq (calc-gripper-trajectory obj-cds *fb-inr*))
-    ;; (unless av-seq
-    ;;   (print "failed to solve ik, try to move base")
-    ;;   (return-from move-object t)) ;;;need to edit , move base may not work once enter new loop
-    ;; (send *ri* :angle-vector-sequence av-seq (list t-long t-short)  :default-controller st-time)
-    ;; (push av-seq full-av-seq)
-    ;; (setq check-time (ros::time+ st-time (ros::time (+ (/ t-long 1000.0) (* fb-inr (/ t-short 1000.0) 0.5)))))
-    ;;(print av-seq)
     (while (ros::ok)
       (when (>= (send (ros::time- (ros::time-now) check-time) :to-sec) 0.0)
 	(format t "real check-time:~A~%" (ros::time-now))
@@ -170,7 +159,6 @@
 	;;check if distance from previous location is too close
 	(print obj-cds-pre)
 	(print obj-cds)
-	(read)
 	(let (ans)
 	  (setq dist-from-pre (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
 	  (print dist-from-pre)
@@ -211,7 +199,8 @@
 	  (return-from move-object t))))
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	(send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
-
+	(send cube-obj-pre :move-to *obj-cds-pre* :world)
+		
 	(send *ri* :angle-vector-sequence av-seq (list t-long t-short)  :default-controller st-time)
 	(push av-seq full-av-seq)
 	(send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world))
