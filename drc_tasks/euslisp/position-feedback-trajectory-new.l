@@ -12,7 +12,7 @@
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
 (defparameter *obj-cds-pre* (make-coords))
-(defparameter *fb-inr* 5);cm
+(defparameter *fb-inr* 5); 5 times * 10 mm
 (defparameter *t-long* 300) ;msec
 (defparameter *t-short* 200) ;msec
 (defparameter *t-gap* 0.0) ;msec
@@ -257,11 +257,14 @@
 	 (v-proj (float-vector (elt dif-v 0) (elt dif-v 1) 0.0))
 	 (ang-z (vector-angle #f(1 0 0) v-proj #f(0 0 1)))
 	 ang-y
-	 k-gain
-	 i-gain
+	 (dist-gain (/(norm dif-v) (* *fb-inr* 10)))
+	 (k-gain (* 0.45 *k-gain-f*))
+	 (i-gain (* (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) *k-gain-f*))
 	 p-factor
 	 i-factor)
-    
+
+	  ;;(setq dist-from-pre (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
+
     (send diff-cds :rotate ang-z :z)
     (setq dif-v (send diff-cds :inverse-transform-vector dif-v))
     (setq ang-y (vector-angle #f(1 0 0) dif-v #f(0 1 0)))
@@ -270,8 +273,6 @@
     (push diff-cds dif-cds-seq)
     (push (float-vector ang-z ang-y) ang-seq)
 
-    (setq k-gain (* 0.45 *k-gain-f*))
-    (setq i-gain (* (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) *k-gain-f*))
     ;; (setq k-gain 0.5)
     ;; (setq i-gain 1000000)
 
@@ -282,8 +283,8 @@
       (print sum)
       (setq i-factor (scale (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) sum)))
     
-    (send output-trans :rotate (* k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
-    (send output-trans :rotate (* k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
+    (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
+    (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
     ;; diff-cds))
      output-trans))
     
