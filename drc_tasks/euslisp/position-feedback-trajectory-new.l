@@ -15,7 +15,7 @@
 (defparameter *fb-inr* 5); 5 times * 10 mm
 (defparameter *t-long* 300) ;msec
 (defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 0.0) ;msec
+(defparameter *t-gap* 100.0) ;msec
 (defparameter *k-gain-f* 0.8)
 (defparameter *i-gain-f* 0.8)
 ;; (defparameter *k-gain-f* 0.00001)
@@ -24,7 +24,7 @@
 (setq hoge-av #f(100.414 23.6311 57.2893 -0.408905 -117.46 0.004609 -5.79251 -0.000154 -31.1512 45.5591 -85.6182 -82.7801 37.6429 -5.72958 18.461 -1.29946 -21.2682))
 
 
-(ros::rate 50)
+(ros::rate 20)
 (setq obj-trans-seq nil)
 (setq dif-cds-seq nil)
 (setq ang-seq nil)
@@ -158,12 +158,13 @@
 	(send obj-cds :replace-pos (send *pr2* *use-arm* :end-coords :worldpos))
 
 	;;check if distance from previous location is too close
-	(print obj-cds-pre)
-	(print obj-cds)
-	(let (ans)
-	  (setq dist-from-pre (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
+	;; (print obj-cds-pre)
+	;; (print obj-cds)
+	(let (ans
+	      (trans (send obj-cds-pre :transformation obj-cds)))
+	  (setq dist-from-pre (norm (send trans :worldpos)))
 	  (print dist-from-pre)
-	  (when (< dist-from-pre (/ (* fb-inr 10) 2.5))
+	  (when (or (< dist-from-pre (/ (* fb-inr 10) 2.5)) (< (elt (send trans :worldpos) 0) 0.0))
 	    (format t "object is stuck, dist-from-pre:~A~%" dist-from-pre)
 	    (while (not (or (equal ans 'yes) (equal ans 'no)))
 	      (print "continute?(yes/no)")
@@ -185,18 +186,22 @@
 
 	;guess next start point and try to solve ik ;;need to make better
 	(let ((next-cds (send obj-cds :copy-worldcoords)))
-	(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
+	;;(print (+ (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)))
 	;; (send obj-cds :translate (float-vector (* dist-from-pre 0.5) 0 0))
 	(send next-cds :translate (float-vector (* fb-inr 10 0.5) 0 0))
 	;; (send obj-cds :translate (float-vector (+  (- (* fb-inr 10) dist-from-pre) (* fb-inr 10 0.5)) 0 0))
 	(setq av-seq (calc-gripper-trajectory next-cds *fb-inr*))
 
 	;;move base if gripper is too close to body
-	(let ((c (send *pr2* *use-arm* :end-coords :worldpos)))
-	  (unless (and 
-		   (> (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos))) 400) 
-		   av-seq)
-	  (print "failed to solve ik or gripper is too close, try to move base")
+	(let* ((c (send *pr2* *use-arm* :end-coords :worldpos))
+	      (d (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos)))))
+	  
+	  (unless (and (> d 400) av-seq)
+	    (unless (> d 400)
+	      (print "gripper is too close to body"))
+	    (unless av-seq 
+	      (print "failed to solve ik"))
+	  (print " try to move base")
 	  (return-from move-object t))))
 	(send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	(send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
@@ -265,7 +270,6 @@
 	 i-factor)
 
 	  ;;(setq dist-from-pre (norm (v- (send obj-cds-pre :worldpos) (send obj-cds :worldpos))))
-
     (send diff-cds :rotate ang-z :z)
     (setq dif-v (send diff-cds :inverse-transform-vector dif-v))
     (setq ang-y (vector-angle #f(1 0 0) dif-v #f(0 1 0)))
@@ -276,7 +280,9 @@
 
     ;; (setq k-gain 0.5)
     ;; (setq i-gain 1000000)
-
+    (format t "dist-gain:=~A~%" dist-gain)
+    (setq dist-gain (if (> dist-gain 1.0) 1.0 dist-gain))
+    (format t "dist-gain:=~A~%" dist-gain)
     (setq p-factor (car ang-seq))
     (let ((sum #f(0 0)))
       (dolist (ang ang-seq)
