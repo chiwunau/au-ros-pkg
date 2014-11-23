@@ -15,7 +15,8 @@
 (defparameter *fb-inr* 10); n times * 10 mm
 (defparameter *t-long* 300) ;msec
 (defparameter *t-short* 100) ;msec
-(defparameter *t-gap* 0.0) ;msec
+(defparameter *t-gap* 100.0) ;msec
+(defparameter *ct-gap* 350.0) ;msec
 (defparameter *k-gain-f* 0.8)
 (defparameter *i-gain-f* 0.8)
 ;; (defparameter *k-gain-f* 0.00001)
@@ -43,14 +44,15 @@
 	 (print "adjust-base")
 	 (speak-jp "移動します")
 	 (unless (adjust-base-location)
-	   (return-from pr2-open-door)))
+	   (return-from pr2-open-door))
+	 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+	 (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
+	 (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
+	 (send cube-obj-pre :move-to *obj-cds-pre* :world)
+	 )
      (progn
        (print "move object finished")
        (return-from pr2-open-door)))
-   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-   (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
-   (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
-   (send cube-obj-pre :move-to *obj-cds-pre* :world)
    )
   )
 
@@ -61,7 +63,7 @@
   (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
   (init-obj-cds)
   (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
-  (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
+  (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 10) 0 0))
   (setq *obj-trans* (make-coords))
   (update-base-trans)
   (setq cds-seq nil)
@@ -138,7 +140,6 @@
 	  (obj-cds (make-coords))
 	  (obj-trans (send *obj-trans* :copy-worldcoords))
 	  (av-seq nil)
-	  (st-time (ros::time+ (ros::time-now) (ros::time 1.0)))
 	  (check-time (ros::time+ (ros::time-now) (ros::time 1.0)))
 	  ;;check-time
 	  res
@@ -147,7 +148,6 @@
 	  (t-long *t-long*) ;msec
 	  (t-short *t-short*) ;msec
 	  (t-gap *t-gap*)) ;sec
-    ;;init coords
 
     (send *irtviewer* :objects (send obj-cds :copy-worldcoords))
     (while (ros::ok)
@@ -155,7 +155,7 @@
 	(format t "real check-time:~A~%" (ros::time-now))
 	(print "start feedback")
 	(setq st-time (ros::time+ (ros::time-now) (ros::time (+ (* fb-inr (/ t-short 1000.0) 0.5) (/ t-gap 1000.0)))))
-	(setq check-time (ros::time+ st-time (ros::time (+ (/ t-long 1000.0) (* fb-inr (/ t-short 1000.0) 0.5)))))
+	(setq check-time (ros::time+ st-time (ros::time (+ (/ t-long 1000.0) (* fb-inr (/ t-short 1000.0) 0.5) (/ *ct-gap* 1000)))))
 	
 	(format t "set st-tiim:~A check-time:~A~%" st-time check-time)
 	(send *pr2* :angle-vector (send *ri* :state :potentio-vector))
