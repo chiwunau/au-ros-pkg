@@ -6,16 +6,16 @@
 
 (defparameter *use-arm* :rarm)
 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-(defparameter *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
+(defparameter *gripper-cds-st* (make-coords))
 (defparameter *obj-trans* (make-coords))
 (defparameter *base-trans* (make-coords))
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
 (defparameter *obj-cds-pre* (make-coords))
-(defparameter *fb-inr* 5); 5 times * 10 mm
+(defparameter *fb-inr* 10); n times * 10 mm
 (defparameter *t-long* 300) ;msec
-(defparameter *t-short* 200) ;msec
-(defparameter *t-gap* 100.0) ;msec
+(defparameter *t-short* 100) ;msec
+(defparameter *t-gap* 0.0) ;msec
 (defparameter *k-gain-f* 0.8)
 (defparameter *i-gain-f* 0.8)
 ;; (defparameter *k-gain-f* 0.00001)
@@ -46,24 +46,29 @@
 	   (return-from pr2-open-door)))
      (progn
        (print "move object finished")
-       (return-from pr2-open-door)))))
+       (return-from pr2-open-door)))
+   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+   (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
+   (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
+   (send cube-obj-pre :move-to *obj-cds-pre* :world)
+   )
+  )
 
 (defun init-param ()
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (send *pr2* :move-to (make-coords) :world)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-  (setq *obj-trans* (make-coords))
   (init-obj-cds)
   (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
   (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 0.5 10) 0 0))
+  (setq *obj-trans* (make-coords))
   (update-base-trans)
   (setq cds-seq nil)
   (setq ang-seq nil)
   (setq dif-v-seq nil)
   (setq full-av-seq nil)
   (setq dif-cds-seq nil)
-
   (setq cube-obj-pre (make-cube 40 40 40))
   (send cube-obj-pre :set-color :blue)
   (send cube-obj-pre :move-to *obj-cds-pre* :world)
@@ -252,7 +257,7 @@
       (send *ri* :angle-vector (send *pr2* :angle-vector)
 	    move-time :default-controller sttm)
       (send *ri* :move-trajectory
-	    (/ (elt dif-v 0) move-time) (/ (elt dif-v 1) move-time) (/ (vector-angle #f(1 0 0) (matrix-row (send diff-cds :rot) 0) #f(0 0 1)) (/ move-time 1000.0))
+	    (/ (elt dif-v 0) move-time) (/ (elt dif-v 1) move-time) (/ (vector-angle #f(1 0 0) (matrix-column (send diff-cds :worldrot) 0) #f(0 0 1)) (/ move-time 1000.0))
 	    move-time :start-time sttm :send-action t)
       )))
 
