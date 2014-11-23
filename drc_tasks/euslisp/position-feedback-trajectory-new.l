@@ -93,7 +93,8 @@
       (setq res (check-ik-solvable-at-location base-cds))
       (send *irtviewer* :draw-objects :flush t)
       (if res (return))
-      (let ((ang (vector-angle (matrix-row (send *obj-cds-st* :worldrot) 0)  (matrix-row (send *obj-cds-pre* :rot) 0) #f(0 0 1))))
+      (let* ((m (matrix #f(1 0 0) #f(0 1 0) #f(0 0 0)))
+	    (ang (vector-angle (transform m (matrix-column (send *obj-cds-st* :worldrot) 0))  (transform m (matrix-column (send *obj-cds-pre* :worldrot) 0)) #f(0 0 1))))
 	(send gripper-pos-cds :rotate (deg2rad (if (>= ang 0.0) 10 -10)) :z)));;need edit for both direction
     (if res
 	(progn
