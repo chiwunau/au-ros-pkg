@@ -8,6 +8,8 @@
 #include <sstream>
 #include "jsk_pcl_ros/BoundingBoxArray.h"
 #include "jsk_pcl_ros/BoundingBoxArray.h"
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
 
 class FrameDrawer
 {
@@ -33,12 +35,14 @@ class FrameDrawer
   cv::Mat image_dst_;
   cv_bridge::CvImagePtr input_bridge_;
   cv_bridge::CvImagePtr output_bridge_;
-  
+  int max_dist_;
+  const int max_dist_limit_;
   
   
 public:
   FrameDrawer()
-    : it_(nh_)
+    : it_(nh_),
+      max_dist_limit_(256)      
   {
     std::cout<<"framedrawer created"<<std::endl;
     std::string image_topic = nh_.resolveName("image");
@@ -48,6 +52,13 @@ public:
     cvInitFont(&font_, CV_FONT_HERSHEY_SIMPLEX, 0.5, 0.5);
     cam_info_ok_ = false;
     box_ok_ = false;
+    cv::namedWindow("OUTPUT_WINDOW");
+    cv::setMouseCallback("OUTPUT_WINDOW", &FrameDrawer::MouseCb, NULL);
+    cv::createTrackbar("max_dist", "OUTPUT_WINDOW", &(this -> max_dist_), max_dist_limit_);
+  }
+  ~FrameDrawer()
+  {
+    cv::destroyWindow("OUTPUT_WINDOW");
   }
 
   void boxesCb(const jsk_pcl_ros::BoundingBoxArray::ConstPtr& msg)
@@ -67,7 +78,7 @@ public:
 	{
 	  jsk_pcl_ros::BoundingBox box = *boxes_it_;
 	  geometry_msgs::Point pos = box.pose.position;
-	  if(pos.z < 1.50)
+	  if(pos.z < (5.0 *(double) max_dist_ / max_dist_limit_))
 	    {
 	      std::vector<cv::Point2d> vertices;
 	      geometry_msgs::Quaternion orient = box.pose.orientation;
@@ -160,12 +171,21 @@ public:
     
     for(i=0; i<hull.size(); i++){
       for( j=0; j<hull[i].size(); j++){
-	cv::line(image, hull[i][j], hull[i][j+1<hull[i].size()?j+1:0], cv::Scalar(100,100,200), 2, CV_AA);
+	cv::line(image, hull[i][j], hull[i][ j+1 < hull[i].size()? j+1 : 0 ], cv::Scalar(100,100,200), 2, CV_AA);
       }
     }
+    cv::imshow("OUTPUT_WINDOW",output_bridge_ -> image);
+    cv::waitKey(3);
     image_pub_.publish(output_bridge_->toImageMsg()); 
-    
   }
+
+  static void MouseCb(int event, int x, int y, int flags, void* userdata)
+  {
+    if (event == cv::EVENT_LBUTTONDOWN){
+      std::cout << "Left button of the mouse is clicked - position (" << x << ", " << y << ")" << std::endl;
+    }
+  }
+    
 
   cv::Mat quatToMatrix(geometry_msgs::Quaternion q)
   {
@@ -198,6 +218,7 @@ public:
     
     return rot;
   }
+
 
 };
 
