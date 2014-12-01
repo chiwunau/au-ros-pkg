@@ -12,18 +12,17 @@
 (defparameter *obj-gripper-trans* (make-coords))
 (defparameter *obj-cds-st* nil)
 (defparameter *obj-cds-pre* (make-coords))
-(defparameter *fb-inr* 10); n times * 10 mm
+(defparameter *fb-inr* 5); n times * 10 mm
 (defparameter *t-long* 300) ;msec
-(defparameter *t-short* 100) ;msec
-(defparameter *t-gap* 100.0) ;msec
-(defparameter *ct-gap* 350.0) ;msec
+(defparameter *t-short* 200) ;msec
+(defparameter *t-gap* 50.0) ;msec
+(defparameter *ct-gap* 0.0) ;msec
 (defparameter *k-gain-f* 0.8)
 (defparameter *i-gain-f* 0.8)
 ;; (defparameter *k-gain-f* 0.00001)
 ;; (defparameter *i-gain-f* 0.00001)
 
 (setq hoge-av #f(100.414 23.6311 57.2893 -0.408905 -117.46 0.004609 -5.79251 -0.000154 -31.1512 45.5591 -85.6182 -82.7801 37.6429 -5.72958 18.461 -1.29946 -21.2682))
-
 
 (ros::rate 20)
 (setq obj-trans-seq nil)
