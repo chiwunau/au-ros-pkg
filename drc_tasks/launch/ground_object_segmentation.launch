@@ -1,6 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
 <launch>
   <arg name="MANAGER" default="ground_object_segmentation_manager"/>
-  <arg name="INPUT" default="/openni_c2/depth_registered/points"/>
+  <arg name="INPUT" default="/openni/depth_registered/points"/>
   <arg name="fixed_frame_id" default="base_footprint"/>
   <arg name="NAMESPACE" default="ground_object_segmentation"/>
 
@@ -8,9 +9,24 @@
     <node pkg="nodelet" type="nodelet" name="$(arg MANAGER)"
 	  args="manager" output="screen"/>
 
+    <node pkg="nodelet" type="nodelet" name="input_relay"
+          args="load jsk_topic_tools/Relay $(arg MANAGER)">
+      <remap from="~input" to="$(arg INPUT)" />
+    </node>
+    <node pkg="nodelet" type="nodelet" name="footprint_polygon_publisher"
+          clear_params="true"
+          args="load jsk_pcl/StaticPolygonArrayPublisher $(arg MANAGER)">
+      <remap from="~input" to="input_relay/output" />
+      <rosparam subst_values="true">
+use_message: true
+frame_ids: [base_footprint]
+polygon_array: [[[10, 10, 0], [-10, 10, 0], [-10, -10, 0], [10, -10, 0]]]
+      </rosparam>
+   </node>
+
     <node pkg="nodelet" type="nodelet" name="transform_points"
           args="load jsk_pcl/TfTransformCloud $(arg MANAGER)">
-      <remap from="~input" to="$(arg INPUT)" />
+      <remap from="~input" to="input_relay/output" />
       <rosparam subst_value="true">
         target_frame_id: $(arg fixed_frame_id)
       </rosparam>
@@ -56,7 +72,11 @@ tolerance: 0.1
 	 output="screen" clear_params="true">
      <remap from="~input" to="voxelgrid/output" />
      <remap from="~target" to="clustering/output" />
+     <remap from="~align_planes" to="footprint_polygon_publisher/output_polygons" />
+     <remap from="~align_planes_coefficient" to="footprint_polygon_publisher/output_coefficients" />
      <rosparam>
+align_boxes: false
+use_pca: true
 publish_clouds: false
 publish_tf: false
      </rosparam>
@@ -78,16 +98,67 @@ publish_tf: false
      <remap from="~selected_index" to="bounding_box_marker/selected_index" />
      <remap from="~output" to="selected_pointcloud" />
    </node>
-<!--   <node pkg="nodelet" type="nodelet" name="multi_plane_estimate" -->
-<!--         args="load jsk_pcl/OrganizedMultiPlaneSegmentation $(arg MANAGER)" -->
-<!--         clear_params="false"> -->
-<!--     <remap from="~input" to="selected_pointcloud"/> -->
-<!--     <rosparam> -->
-<!-- max_curvature: 0.01 -->
-<!-- estimate_normal: true -->
-<!--     </rosparam> -->
 
-<!--   </node> -->
+   <node pkg="nodelet" type="nodelet"
+	 args="load pcl/NormalEstimationOMP $(arg MANAGER)"
+	 name="normal_estimation">
+     <remap from="~input" to="selected_pointcloud" />
+     <rosparam>
+       radius_search: 0
+       k_search: 40
+       # 0, => ANN, 1 => FLANN, 2=> Organized
+       spatial_locator: 2
+     </rosparam>
+   </node>
+
+   <node pkg="nodelet" type="nodelet" name="normal_concat"
+	 args="load jsk_pcl/NormalConcatenater $(arg MANAGER)"
+	 clear_params="true">
+     <remap from="~input" to="selected_pointcloud"/>
+     <remap from="~normal" to="normal_estimation/output"/>
+   </node>
+
+
+   
+   <node pkg="nodelet" type="nodelet"
+   	 args="load jsk_pcl/RegionGrowingMultiplePlaneSegmentation $(arg MANAGER)"
+   	 name="multi_plane_region_growing">
+     <remap from="~input" to="selected_pointcloud" />
+     <remap from="~input_normal" to="normal_estimation/output" />
+     <rosparam>
+       cluster_tolerance: 0.1
+     </rosparam>
+   </node>
+
+   <node pkg="nodelet" type="nodelet"
+   	 args="load jsk_pcl/MultiPlaneSACSegmentation $(arg MANAGER)"
+   	 name="multi_plane_sac_segmentation">
+     <remap from="~input" to="selected_pointcloud" />
+     <remap from="~input_clusters" to="multi_plane_region_growing/output/inliers" />
+     <remap from="~input_normal" to="normal_estimation/output" />
+     <rosparam>
+       use_imu_parallel: false
+       use_imu_perpendicular: false
+       use_normal: false
+       use_clusters: true
+     </rosparam>
+   </node>
+
+  <node pkg="nodelet" type="nodelet"
+        args="load jsk_pcl/ClusterPointIndicesDecomposer $(arg MANAGER)"
+        name="multi_plane_region_growing_decomposer">
+    <remap from="~input" to="selected_pointcloud" />
+    <remap from="~target" to="multi_plane_region_growing/output/inliers" />
+    <remap from="~align_planes" to="footprint_polygon_publisher/output_polygons" />
+    <remap from="~align_planes_coefficient" to="footprint_polygon_publisher/output_coefficients" />
+    <rosparam>
+      align_boxes: false
+      use_pca: true
+      publish_tf: false
+      publish_clouds: false
+    </rosparam>
+  </node>
+
 
   </group>
 </launch>
