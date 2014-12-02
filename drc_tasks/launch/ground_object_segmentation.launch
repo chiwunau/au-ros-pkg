@@ -1,0 +1,93 @@
+<launch>
+  <arg name="MANAGER" default="ground_object_segmentation_manager"/>
+  <arg name="INPUT" default="/openni_c2/depth_registered/points"/>
+  <arg name="fixed_frame_id" default="base_footprint"/>
+  <arg name="NAMESPACE" default="ground_object_segmentation"/>
+
+  <group ns="$(arg NAMESPACE)">
+    <node pkg="nodelet" type="nodelet" name="$(arg MANAGER)"
+	  args="manager" output="screen"/>
+
+    <node pkg="nodelet" type="nodelet" name="transform_points"
+          args="load jsk_pcl/TfTransformCloud $(arg MANAGER)">
+      <remap from="~input" to="$(arg INPUT)" />
+      <rosparam subst_value="true">
+        target_frame_id: $(arg fixed_frame_id)
+      </rosparam>
+    </node>
+
+    <node pkg="nodelet" type="nodelet"
+    	  name="zfilter"
+    	  args="load pcl/PassThrough $(arg MANAGER)">
+      <remap from="~input" to="transform_points/output" />
+      <rosparam>
+filter_field_name: z
+filter_limit_min: 0.1
+filter_limit_max: 2.0
+      </rosparam>
+    </node>
+
+   <node pkg="nodelet" type="nodelet"
+          name="voxelgrid"
+          args="load pcl/VoxelGrid $(arg MANAGER)"
+          output="screen" clear_params="true">
+      <remap from="~input" to="zfilter/output" />
+      <rosparam>
+filter_field_name: z
+filter_limit_min: 0.0
+filter_limit_max: 5.0
+leaf_size: 0.01                                                                             
+      </rosparam>
+   </node>
+
+   <node pkg="nodelet" type="nodelet"
+          name="clustering"
+          args="load jsk_pcl/EuclideanClustering $(arg MANAGER)"
+          output="screen" clear_params="true">
+      <remap from="~input" to="voxelgrid/output" />
+      <rosparam>
+tolerance: 0.1
+      </rosparam>
+
+   </node>
+   <node pkg="nodelet" type="nodelet"
+	 name="cluster_decomposer"
+	 args="load jsk_pcl/ClusterPointIndicesDecomposer $(arg MANAGER)"
+	 output="screen" clear_params="true">
+     <remap from="~input" to="voxelgrid/output" />
+     <remap from="~target" to="clustering/output" />
+     <rosparam>
+publish_clouds: false
+publish_tf: false
+     </rosparam>
+   </node>
+   
+   <node pkg="jsk_interactive_marker"
+	 type="bounding_box_marker"
+	 name="bounding_box_marker"
+	 output="screen">
+     <remap from="~bounding_box_array" to="cluster_decomposer/boxes" />
+   </node>
+   
+   <node pkg="nodelet" type="nodelet"
+	 name="selected_cloud"
+	 args="load jsk_pcl/SelectedClusterPublisher $(arg MANAGER)"
+	 output="screen">
+     <remap from="~input" to="voxelgrid/output" />
+     <remap from="~indices" to="clustering/output" />
+     <remap from="~selected_index" to="bounding_box_marker/selected_index" />
+     <remap from="~output" to="selected_pointcloud" />
+   </node>
+<!--   <node pkg="nodelet" type="nodelet" name="multi_plane_estimate" -->
+<!--         args="load jsk_pcl/OrganizedMultiPlaneSegmentation $(arg MANAGER)" -->
+<!--         clear_params="false"> -->
+<!--     <remap from="~input" to="selected_pointcloud"/> -->
+<!--     <rosparam> -->
+<!-- max_curvature: 0.01 -->
+<!-- estimate_normal: true -->
+<!--     </rosparam> -->
+
+<!--   </node> -->
+
+  </group>
+</launch>
