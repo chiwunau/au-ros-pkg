@@ -47,12 +47,12 @@
 	  (send c :transform (send *pr2* :copy-worldcoords) :world)
 	  (push  (send c :copy-worldcoords) centroid-list)))
       (setq *cloud-centroid-list* (reverse centroid-list)))
-    (draw-polygons)
+    (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
     (setq *cofs-cb-flag* nil)
     ))
     
-(defun draw-polygons ()
+(defun init-eus-polygons ()
   (send *irtviewer* :objects (list *pr2*))
   (let (polygons-list)
     (when (equal (length *vertices-list*) (length *plane-normal-list*))
@@ -60,6 +60,7 @@
 	(push (instance polygon :init :vertices (elt *vertices-list* i) :normal (elt *plane-normal-list* i))
 	      polygons-list))
       (mapcar #'(lambda (plg ct)
+		  (send plg :reset-normal)
 		  (let* ((color (float-vector (random 1.0) (random 1.0) (random 1.0)))
 			 (prism (make-prism (mapcar #'(lambda (p) (scale 1 p)) (send plg :vertices)) (send plg :normal)))
 			 (sphere (make-sphere 20)))
@@ -112,7 +113,7 @@
 
 (defun calc-grasp-motion-from-edge (plg edge use-arm use-torso)
   (let ((tgt-pts (find-candidate-grasp-points edge (send *pr2* use-arm :end-coords :worldpos)))
-	(rot (transpose (matrix (v* (send edge :direction) (send plg :normal)) (send edge :direction) (send plg :normal))))
+	(rot (transpose (matrix (normalize-vector (v* (send plg :normal) (send edge :direction))) (scale -1.0 (send edge :direction)) (send plg :normal))))
 	cds-list
 	avs
 	pre-cds 
@@ -120,24 +121,31 @@
     
     (setq pt-l tgt-pts)
     (dolist (tgt-pt tgt-pts)
-      (push (send (make-coords :pos tgt-pt :rot rot) :rotate (deg2rad 90) :x) cds-list))
-    
-    (setq cds-l cds-list)
+      (let ((c (send (make-coords :pos tgt-pt :rot rot) :copy-worldcoords)))
+	(send c :rotate (deg2rad 90.0) :x)
+	(push c cds-list)))
 
+    (setq cds-l cds-list)
+     
     (dolist (cds (reverse cds-list))
       (setq avs nil)
-      (setq pre-cds (send cds :translate #f(-50 0 0)))
-      (unless (send *pr2* :inverse-kinematics pre-cds
-		    :move-target (send *pr2* use-arm :end-coords)
-		    :link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
-		    :use-torso (if use-torso t 0.0)
-		    :rotational-axis t
-		    :debug-view nil)
-	(send pre-cds :rotate (deg2rad -180) :x))
-      (if (send *pr2* :inverse-kinematics pre-cds
-		:move-target (send *pr2* use-arm :end-coords)
-		:link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
-		:use-torso (if use-torso t 0.0)
+      ;;make-sure two grppier would not be too close
+      (when (or use-torso (and (not use-torso) (>= (norm (v- (send cds :worldpos) (send *pr2* (if (equal use-arm :larm) :rarm :larm) :end-coords :worldpos))) 200)))
+	(objects (send cds :copy-worldcoords))
+	(setq pre-cds (send cds :translate #f(-50 0 0)))
+	(unless (send *pr2* :inverse-kinematics pre-cds
+		      :move-target (send *pr2* use-arm :end-coords)
+		      :link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
+		      :use-torso (if use-torso t 0.0)
+		      ;;:use-base (if use-torso t nil)
+		      :rotational-axis t
+		      :debug-view nil)
+	  (send pre-cds :rotate (deg2rad -180) :x))
+	(if (send *pr2* :inverse-kinematics pre-cds
+		  :move-target (send *pr2* use-arm :end-coords)
+		  :link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
+		  :use-torso (if use-torso t 0.0)
+		;;:use-base (if use-torso t nil)
 		:rotational-axis t
 		:debug-view nil)
 	  (progn
@@ -150,7 +158,8 @@
 			:rotational-axis t
 			:debug-view nil)
 	      (push (send *pr2* :angle-vector) avs)
-		(return)))))
+	      (return))))
+	))
     (if (equal (length avs) 2)
 	(progn
 	  (let ((c (make-cube 30 30 30 :coords (send tgt-cds :copy-worldcoords))))
@@ -186,26 +195,30 @@
 	     (return)))
 	 (unless (and l-plg r-plg)
 	   (print "No graspable plane! Abort")
-	   (return-from find-plane-grasp-coords))
+	   (return-from generate-grasp-plane-motions))
 		  
 	 
 	 (setq l-closest-edge-seq (sort-edge-by-dist-from l-plg (send *pr2* :larm :end-coords :worldpos)))
 	 (setq r-closest-edge-seq (sort-edge-by-dist-from r-plg (send *pr2* :rarm :end-coords :worldpos)))
-
+	 
 	 (if (>= (elt (elt (send l-plg :centroid) 1) 2) (elt (elt (send r-plg :centroid) 1) 2)) ;;if z of l-plg > z of r-plg
 	     (progn 
 	       (dolist (edge l-closest-edge-seq)
-		 (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t))
+		 (if (> (send edge :length) 50.0)
+		     (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t)))
 		 (when avs1 (return)))
 	       (dolist (edge r-closest-edge-seq)
-		 (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil))
+		 (if (> (send edge :length) 50.0)
+		     (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil)))
 		 (when avs2 (return))))
 	   (progn 
 	     (dolist (edge r-closest-edge-seq)
-	       (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t))
+	       (if (> (send edge :length) 50.0)
+		   (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t)))
 	       (when avs1 (return)))
 	     (dolist (edge l-closest-edge-seq)
-	       (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil))
+	       (if (> (send edge :length) 50.0)
+		   (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil)))
 	       (when avs2 (return)))))
 
 	 ;;(send *pr2* :angle-vector b4-av)
