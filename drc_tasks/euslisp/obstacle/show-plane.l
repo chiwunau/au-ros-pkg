@@ -50,6 +50,7 @@
     (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
     (setq *cofs-cb-flag* nil)
+    (pr2-grasp-plane)
     ))
     
 (defun init-eus-polygons ()
@@ -237,6 +238,7 @@
     (send *ri* :angle-vector pre-av 5000)
     (send *ri* :wait-interpolation)
     (send *ri* :stop-grasp)
+    (unix:usleep (* 1000 1000))
     (send *ri* :angle-vector tgt-av 1000)
     (send *ri* :wait-interpolation)
     (send *ri* :start-grasp :larm :gain 0.1)
