@@ -50,6 +50,7 @@
     (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
     (setq *cofs-cb-flag* nil)
+    (send *ri* :stop-grasp)
     (pr2-grasp-plane)
     ))
     
@@ -151,12 +152,13 @@
 		:debug-view nil)
 	  (progn
 	    (push (send *pr2* :angle-vector) avs)
-	    (setq tgt-cds (send pre-cds :translate #f(80 0 0)))
+	    (setq tgt-cds (send pre-cds :translate #f(100 0 0)))
 	    (when (send *pr2* :inverse-kinematics tgt-cds
 			:move-target (send *pr2* use-arm :end-coords)
 			:link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
 			:use-torso (if use-torso t 0.0)
 			:rotational-axis t
+			:look-at-target t
 			:debug-view nil)
 	      (push (send *pr2* :angle-vector) avs)
 	      (return))))
@@ -239,7 +241,7 @@
     (send *ri* :wait-interpolation)
     (send *ri* :stop-grasp)
     (unix:usleep (* 1000 1000))
-    (send *ri* :angle-vector tgt-av 1000)
+    (send *ri* :angle-vector tgt-av 3000)
     (send *ri* :wait-interpolation)
     (send *ri* :start-grasp :larm :gain 0.1)
     (send *ri* :start-grasp :rarm :gain 0.1)))
