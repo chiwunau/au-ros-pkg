@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <launch>
   <arg name="MANAGER" default="ground_object_segmentation_manager"/>
   <arg name="INPUT" default="/openni_c2/depth_registered/points"/>
@@ -163,6 +164,7 @@ publish_tf: false
     <remap from="~input" to="selected_pointcloud" />
     <remap from="~target" to="multi_plane_estimation/output/inliers" />
     <rosparam>
+      tf_prefix: "/multi_plane_centroid"
       align_boxes: false
       use_pca: true
       publish_tf: true
