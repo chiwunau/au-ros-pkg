@@ -2,7 +2,7 @@
 (ros::roseus-add-msgs "jsk_pcl_ros")
 (ros::roseus "subscribe_plane_to_eus")
 
-(setq *vertices-list* nil)
+(setq *vertices-list-org* nil)
 (setq *plane-normal-list* nil)
 (setq *polygons-list* nil)
 (setq *cloud-stamp* nil)
@@ -16,7 +16,7 @@
   (setq *plgs-cb-flag* t)
   (setq *cloud-stamp* (send msg :header :stamp))
   (let ((plg-list (send msg :polygons)))
-    (setq *vertices-list* (mapcar #'(lambda (plg)
+    (setq *vertices-list-org* (mapcar #'(lambda (plg)
 				       (let ((pts (send (send plg :polygon) :points))
 					     (pts-list))
 					 (dolist (pt pts)
@@ -27,40 +27,49 @@
 					 (reverse pts-list)))
 				   plg-list))))
 
-(defun coefficients-array-cb (msg)
-  (setq *cofs-cb-flag* t)
-  (let ((cof-list (send msg :coefficients))
-	normal-list)
-    (dolist (cof cof-list)
-      (let ((val (send cof :values)))
-	(push 
-	 (send (send *pr2* :copy-worldcoords) :rotate-vector
-	       (float-vector (elt val 0) (elt val 1) (elt val 2)))
-	 normal-list)))
-    (setq *plane-normal-list* (reverse normal-list))))
+;; (defun coefficients-array-cb (msg)
+;;   (setq *cofs-cb-flag* t)
+;;   (let ((cof-list (send msg :coefficients))
+;; 	normal-list)
+;;     (dolist (cof cof-list)
+;;       (let ((val (send cof :values)))
+;; 	(push 
+;; 	 (send (send *pr2* :copy-worldcoords) :rotate-vector
+;; 	       (float-vector (elt val 0) (elt val 1) (elt val 2)))
+;; 	 normal-list)))
+;;     (setq *plane-normal-list* (reverse normal-list))))
 
 (defun concated-cb ()
-  (when (and *plgs-cb-flag* *cofs-cb-flag*)
+;  (when (and *plgs-cb-flag* *cofs-cb-flag*)
+  (when *plgs-cb-flag*
     (let (centroid-list)
-      (dotimes (i (length *vertices-list*))
+      (dotimes (i (length *vertices-list-org*))
 	(let* ((c (send *tfl* :lookup-transform "/base_footprint" (format nil "/multi_plane_centroidoutput~0,2D" i) *cloud-stamp*)))
-	  (send c :transform (send *pr2* :copy-worldcoords) :world)
-	  (push  (send c :copy-worldcoords) centroid-list)))
+	  (when c
+	    (send c :transform (send *pr2* :copy-worldcoords) :world)
+	    (push  (send c :copy-worldcoords) centroid-list))))
       (setq *cloud-centroid-list* (reverse centroid-list)))
     (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
-    (setq *cofs-cb-flag* nil)
-    (send *ri* :stop-grasp)
-    (pr2-grasp-plane)
+    ;(setq *cofs-cb-flag* nil)
+    ;; (send *ri* :stop-grasp)
+    ;; (pr2-grasp-plane)
     ))
     
 (defun init-eus-polygons ()
   (send *irtviewer* :objects (list *pr2*))
   (let (polygons-list)
-    (when (equal (length *vertices-list*) (length *plane-normal-list*))
-      (dotimes (i (length *vertices-list*))
-	(push (instance polygon :init :vertices (elt *vertices-list* i) :normal (elt *plane-normal-list* i))
-	      polygons-list))
+    ;;(when (equal (length *vertices-list-org*) (length *plane-normal-list*))
+      (dotimes (i (length *vertices-list-org*))
+	;; (push (instance polygon :init :vertices (elt *vertices-list-org* i) :normal (elt *plane-normal-list* i))
+	(let ((plg-temp (instance polygon :init :vertices (elt *vertices-list-org* i)))
+	      plg v)
+	  (if (>= (v. (matrix-column (send *pr2* :head :end-coords :worldrot) 2) (send plg-temp :normal)) 0)
+	      (setq v (send plg-temp :normal))
+	    (setq v (scale -1.0 (send plg-temp :normal))))
+	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 30 v))) (send plg-temp :vertices))))
+	  (push plg polygons-list)))
+
       (mapcar #'(lambda (plg ct)
 		  (send plg :reset-normal)
 		  (let* ((color (float-vector (random 1.0) (random 1.0) (random 1.0)))
@@ -71,8 +80,14 @@
 		    (send prism :set-color color)
 		    (send *irtviewer* :objects sphere)
 		    (send *irtviewer* :objects prism)))
-	      (reverse polygons-list) *cloud-centroid-list*)
-      (setq *polygons-list* (reverse polygons-list)))))
+	      (reverse polygons-list)
+	      (if (equal (length *cloud-centroid-list*) (length polygons-list))
+		  (progn (print "check1")
+			 *cloud-centroid-list*)
+		(progn (print "check2")
+		       (setq plg-l polygons-list)
+		       (mapcar #'(lambda (p) (make-coords :pos(elt (send p :centroid) 1))) (reverse polygons-list)))))
+      (setq *polygons-list* (reverse polygons-list))))
 
 
 (defun sort-polygons-by-dist-from (plgs pt)
@@ -92,26 +107,37 @@
 
 (defun find-candidate-grasp-points (edge pt)
   (let ((par (send edge :foot pt))
+	(n (round (/ (send edge :length) 50))) ;;sample a point every 5cm 
 	pt-list)
-    (cond ((<= par 0)
-	   (dotimes (i 10)
-	     (push (send edge :point (/ i 10.0)) pt-list))
-	   (setq pt-list (cdr (reverse pt-list))))
-	  ((>= par 1)
-	   (dotimes (i 10)
-	     (push (send edge :point (/ i 10.0)) pt-list))
-	   (setq pt-list pt-list))
-	  ((and (> par 0) (< par 1))
-	   (dotimes (i 10)
-	     (let ((pt+ (send edge :point (+ par (/ i 10.0))))
-		   (pt- (send edge :point (- par (/ i 10.0)))))
-	       (if (and (> (send edge :parameter pt+)  0) (< (send edge :parameter pt+) 1))
-		     (push pt+ pt-list))
-	       (if (and (> (send edge :parameter pt-) 0) (< (send edge :parameter pt-) 1))
-		   (push pt- pt-list)))))
-	  (t
-	   ))
-    pt-list))
+    (dotimes (i 9)
+      (push (send edge :point (/ (+ i 1) 10.0)) pt-list))
+
+    (sort pt-list #'(lambda (p1 p2)
+		      (if (<= (norm (v- p1 pt)) (norm (v- p2 pt)))
+			  t)))
+    (subseq pt-list 0 n)))
+
+
+    
+    ;; (cond ((<= par 0)
+    ;; 	   (dotimes (i n)
+    ;; 	     (push (send edge :point (/ i 10.0)) pt-list))
+    ;; 	   (setq pt-list (cdr (reverse pt-list))))
+    ;; 	  ((>= par 1)
+    ;; 	   (dotimes (i n)
+    ;; 	     (push (send edge :point (/ i 10.0)) pt-list))
+    ;; 	   (setq pt-list pt-list))
+    ;; 	  ((and (> par 0) (< par 1))
+    ;; 	   (dotimes (i n)
+    ;; 	     (let ((pt+ (send edge :point (+ par (/ i 10.0))))
+    ;; 		   (pt- (send edge :point (- par (/ i 10.0)))))
+    ;; 	       (if (and (> (send edge :parameter pt+)  0) (< (send edge :parameter pt+) 1))
+    ;; 		     (push pt+ pt-list))
+    ;; 	       (if (and (> (send edge :parameter pt-) 0) (< (send edge :parameter pt-) 1))
+    ;; 		   (push pt- pt-list)))))
+    ;; 	  (t
+    ;; 	   ))
+    ;; pt-list))
 
 (defun calc-grasp-motion-from-edge (plg edge use-arm use-torso)
   (let ((tgt-pts (find-candidate-grasp-points edge (send *pr2* use-arm :end-coords :worldpos)))
@@ -120,6 +146,9 @@
 	avs
 	pre-cds 
 	tgt-cds)
+    
+    (unless tgt-pts
+      (return-from calc-grasp-motion-from-edge nil))
     
     (setq pt-l tgt-pts)
     (dolist (tgt-pt tgt-pts)
@@ -251,9 +280,9 @@
 (ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/polygons"
 		jsk_pcl_ros::PolygonArray
 		#'polygons-array-cb)
-(ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/coefficients"
-		jsk_pcl_ros::ModelCoefficientsArray
-		#'coefficients-array-cb)
+;; (ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/coefficients"
+;; 		jsk_pcl_ros::ModelCoefficientsArray
+;; 		#'coefficients-array-cb)
 
 (defun main()
   (ros::rate 5)
