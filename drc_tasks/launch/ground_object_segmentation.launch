@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
   <arg name="MANAGER" default="ground_object_segmentation_manager"/>
-  <arg name="INPUT" default="/openni_c2/depth_registered/points"/>
-  <arg name="camera_info" default="/openni_c2/rgb/camera_info"/>
+  <arg name="INPUT" default="/openni/depth_registered/points"/>
+  <arg name="camera_info" default="/openni/rgb/camera_info"/>
   <arg name="fixed_frame_id" default="base_footprint"/>
   <arg name="NAMESPACE" default="ground_object_segmentation"/>
 
@@ -69,6 +69,7 @@ leaf_size: 0.01
       </rosparam>
    </node>
 
+
    <node pkg="nodelet" type="nodelet"
           name="clustering"
           args="load jsk_pcl/EuclideanClustering $(arg MANAGER)"
@@ -101,6 +102,14 @@ publish_tf: false
 	 output="screen">
      <remap from="~bounding_box_array" to="cluster_decomposer/boxes" />
    </node>
+
+   <node pkg="jsk_interactive_marker"
+	 type="bounding_box_menu_marker"
+	 name="bounding_box_menu_marker"
+	 output="screen">
+     <remap from="~bounding_box_array" to="bounding_box_marker/selected_box" />
+   </node>
+
    
    <node pkg="nodelet" type="nodelet"
 	 name="selected_cloud"
