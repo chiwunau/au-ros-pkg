@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <launch>
   <arg name="MANAGER" default="ground_object_segmentation_manager"/>
-  <arg name="INPUT" default="/openni/depth_registered/points"/>
-  <arg name="camera_info" default="/openni/rgb/camera_info"/>
+  <arg name="INPUT" default="/openni_c2/depth_registered/points"/>
+  <arg name="camera_info" default="/openni_c2/rgb/camera_info"/>
   <arg name="fixed_frame_id" default="base_footprint"/>
   <arg name="NAMESPACE" default="ground_object_segmentation"/>
 
@@ -39,11 +39,10 @@ polygon_array: [[[10, 10, 0], [-10, 10, 0], [-10, -10, 0], [10, -10, 0]]]
       <remap from="~input" to="transform_points/output" />
       <rosparam>
 filter_field_name: x
-filter_limit_min: 0.0
+filter_limit_min: -3.0
 filter_limit_max: 3.0
       </rosparam>
     </node>
-
 
     <node pkg="nodelet" type="nodelet"
     	  name="zfilter"
@@ -51,7 +50,7 @@ filter_limit_max: 3.0
       <remap from="~input" to="xfilter/output" />
       <rosparam>
 filter_field_name: z
-filter_limit_min: 0.1
+filter_limit_min: 0.05
 filter_limit_max: 2.0
       </rosparam>
     </node>
@@ -65,29 +64,29 @@ filter_limit_max: 2.0
 filter_field_name: z
 filter_limit_min: 0.0
 filter_limit_max: 5.0
-leaf_size: 0.01                                                                             
+leaf_size: 0.01
       </rosparam>
    </node>
 
 
    <node pkg="nodelet" type="nodelet"
-          name="clustering"
+          name="level00_clustering"
           args="load jsk_pcl/EuclideanClustering $(arg MANAGER)"
           output="screen" clear_params="true">
       <remap from="~input" to="voxelgrid/output" />
       <rosparam>
-tolerance: 0.05
+tolerance: 0.1
+max_size 30000
+min_size 50
       </rosparam>
 
    </node>
    <node pkg="nodelet" type="nodelet"
-	 name="cluster_decomposer"
+	 name="level00_cluster_decomposer"
 	 args="load jsk_pcl/ClusterPointIndicesDecomposer $(arg MANAGER)"
 	 output="screen" clear_params="true">
      <remap from="~input" to="voxelgrid/output" />
-     <remap from="~target" to="clustering/output" />
-     <!-- <remap from="~align_planes" to="footprint_polygon_publisher/output_polygons" /> -->
-     <!-- <remap from="~align_planes_coefficient" to="footprint_polygon_publisher/output_coefficients" /> -->
+     <remap from="~target" to="level00_clustering/output" />
      <rosparam>
 align_boxes: false
 use_pca: true
@@ -95,32 +94,33 @@ publish_clouds: false
 publish_tf: false
      </rosparam>
    </node>
-   
-   <node pkg="jsk_interactive_marker"
-	 type="bounding_box_marker"
-	 name="bounding_box_marker"
-	 output="screen">
-     <remap from="~bounding_box_array" to="cluster_decomposer/boxes" />
-   </node>
 
    <node pkg="jsk_interactive_marker"
-	 type="bounding_box_menu_marker"
-	 name="bounding_box_menu_marker"
-	 output="screen">
-     <remap from="~bounding_box_array" to="bounding_box_marker/selected_box" />
+   	 type="bounding_box_menu_marker"
+   	 name="bounding_box_marker"
+   	 output="screen">
+     <remap from="~level00_bounding_box_array" to="level00_cluster_decomposer/boxes" />
+     <remap from="~level01_bounding_box_array" to="level01_cluster_decomposer/boxes" />
    </node>
+
+   <!-- <node pkg="jsk_interactive_marker" -->
+   <!-- 	 type="bounding_box_menu_marker" -->
+   <!-- 	 name="bounding_box_menu_marker" -->
+   <!-- 	 output="screen"> -->
+   <!--   <remap from="~bounding_box_array" to="cluster_decomposer/boxes" /> -->
+   <!-- </node> -->
 
    
    <node pkg="nodelet" type="nodelet"
-	 name="selected_cloud"
+	 name="level00_selected_cloud"
 	 args="load jsk_pcl/SelectedClusterPublisher $(arg MANAGER)"
 	 output="screen">
      <remap from="~input" to="voxelgrid/output" />
-     <remap from="~indices" to="clustering/output" />
-     <remap from="~selected_index" to="bounding_box_marker/selected_index" />
-     <remap from="~output" to="selected_pointcloud" />
+     <remap from="~indices" to="level00_clustering/output" />
+     <remap from="~selected_index" to="bounding_box_marker/level00_selected_index" />
+     <remap from="~output" to="level00_selected_pointcloud" />
    </node>
-
+   
  <!--   <node pkg="nodelet" type="nodelet" -->
  <!-- 	 name="depth_image_creator" -->
  <!-- 	 args="load jsk_pcl/DepthImageCreator $(arg MANAGER)" -->
@@ -141,7 +141,7 @@ publish_tf: false
    <node pkg="nodelet" type="nodelet"
 	 args="load pcl/NormalEstimationOMP $(arg MANAGER)"
 	 name="normal_estimation">
-     <remap from="~input" to="selected_pointcloud" />
+     <remap from="~input" to="level00_selected_pointcloud" />
      <rosparam>
        radius_search: 0
        k_search: 40
@@ -153,14 +153,14 @@ publish_tf: false
    <node pkg="nodelet" type="nodelet" name="normal_concat"
 	 args="load jsk_pcl/NormalConcatenater $(arg MANAGER)"
 	 clear_params="true">
-     <remap from="~input" to="selected_pointcloud"/>
+     <remap from="~input" to="level00_selected_pointcloud"/>
      <remap from="~normal" to="normal_estimation/output"/>
    </node>
    
    <node pkg="nodelet" type="nodelet"
    	 args="load jsk_pcl/RegionGrowingMultiplePlaneSegmentation $(arg MANAGER)"
-   	 name="multi_plane_estimation">
-     <remap from="~input" to="selected_pointcloud" />
+   	 name="multi_plane_estimate">
+     <remap from="~input" to="level00_selected_pointcloud" />
      <remap from="~input_normal" to="normal_estimation/output" />
      <rosparam>
        cluster_tolerance: 0.1
@@ -170,15 +170,70 @@ publish_tf: false
   <node pkg="nodelet" type="nodelet"
         args="load jsk_pcl/ClusterPointIndicesDecomposer $(arg MANAGER)"
         name="multi_plane_decomposer">
-    <remap from="~input" to="selected_pointcloud" />
-    <remap from="~target" to="multi_plane_estimation/output/inliers" />
+    <remap from="~input" to="level00_selected_pointcloud" />
+    <remap from="~target" to="multi_plane_estimate/output/inliers" />
     <rosparam>
       tf_prefix: "/multi_plane_centroid"
       align_boxes: false
       use_pca: true
       publish_tf: true
+      publish_clouds: true
+    </rosparam>
+  </node>
+
+  <node pkg="nodelet" type="nodelet"
+	name="plane_extraction"
+	args="load jsk_pcl/MultiPlaneExtraction $(arg MANAGER)"
+	output="screen">
+    <remap from="~input" to="level00_selected_pointcloud" />
+    <remap from="~indices" to="multi_plane_estimate/output/inliers" />
+    <remap from="~input_polygons" to="multi_plane_estimate/output/polygons" />
+    <remap from="~input_coefficients" to="multi_plane_estimate/output/coefficients" />
+  </node>
+  
+  <node pkg="nodelet" type="nodelet" name="level01_clustering"
+	args="load jsk_pcl/EuclideanClustering $(arg MANAGER)" output="screen">
+    <remap from="~input" to="plane_extraction/output_nonplane_cloud" />
+    <rosparam>
+      tolerance: 0.03
+      min_size: 20
+    </rosparam>
+  </node>
+
+  <node pkg="nodelet" type="nodelet"
+        name="level01_cluster_decomposer"
+        args="load jsk_pcl/ClusterPointIndicesDecomposer $(arg MANAGER)"
+        output="screen">
+    <remap from="~input" to="plane_extraction/output_nonplane_cloud" />
+    <remap from="~target" to="level01_clustering/output" />
+    <remap from="~align_planes" to="multi_plane_estimate/output/polygons" />
+    <remap from="~align_planes_coefficients"
+           to="multi_plane_estimate/output/coefficients" />
+    <rosparam>
+      align_boxes: true
+      use_pca: true   
+      publish_tf: true
       publish_clouds: false
     </rosparam>
   </node>
+
+ <!-- <node pkg="jsk_interactive_marker" -->
+ <!--        type="bounding_box_marker" -->
+ <!--        name="level01_bounding_box_marker" -->
+ <!--        output="screen" -->
+ <!--        > -->
+ <!--    <remap from="~bounding_box_array" to="level01_cluster_decomposer/boxes" /> -->
+ <!-- </node> -->
+
+ <!-- <node pkg="nodelet" type="nodelet" -->
+ <!--       name="selected_cloud" -->
+ <!--       machine="$(arg MACHINE)" -->
+ <!--       args="load jsk_pcl/SelectedClusterPublisher /$(arg MANAGER)" -->
+ <!--       output="screen"> -->
+ <!--   <remap from="~input" to="/plane_extraction/output" /> -->
+ <!--   <remap from="~indices" to="/euclidean_clustering/output" /> -->
+ <!--   <remap from="~selected_index" to="/bounding_box_marker/selected_index" /> -->
+ <!--   <remap from="~output" to="/selected_pointcloud" /> -->
+ <!-- </node> -->
 </group>
 </launch>
