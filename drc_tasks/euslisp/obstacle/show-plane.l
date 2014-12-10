@@ -11,6 +11,8 @@
 (setq *plgs-cb-flag* nil)
 (setq *cofs-cb-flag* nil)
 
+(setq *grasp-motions-avs* nil)
+
 
 (defun polygons-array-cb (msg)
   (setq *plgs-cb-flag* t)
@@ -51,15 +53,18 @@
       (setq *cloud-centroid-list* (reverse centroid-list)))
     (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
-    ;(setq *cofs-cb-flag* nil)
-    ;; (send *ri* :stop-grasp)
-    ;; (pr2-grasp-plane)
+					;(setq *cofs-cb-flag* nil)
+    (send *ri* :stop-grasp)
+    (pr2-grasp-plane)
+    (pr2-release-plane)
     ))
     
 (defun init-eus-polygons ()
   (send *irtviewer* :objects (list *pr2*))
   (let (polygons-list)
     ;;(when (equal (length *vertices-list-org*) (length *plane-normal-list*))
+    
+    ;;shift the detected polygons a little considering the thickness
       (dotimes (i (length *vertices-list-org*))
 	;; (push (instance polygon :init :vertices (elt *vertices-list-org* i) :normal (elt *plane-normal-list* i))
 	(let ((plg-temp (instance polygon :init :vertices (elt *vertices-list-org* i)))
@@ -67,7 +72,7 @@
 	  (if (>= (v. (matrix-column (send *pr2* :head :end-coords :worldrot) 2) (send plg-temp :normal)) 0)
 	      (setq v (send plg-temp :normal))
 	    (setq v (scale -1.0 (send plg-temp :normal))))
-	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 30 v))) (send plg-temp :vertices))))
+	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 20 v))) (send plg-temp :vertices))))
 	  (push plg polygons-list)))
 
       (mapcar #'(lambda (plg ct)
@@ -109,12 +114,12 @@
   (let ((par (send edge :foot pt))
 	(n (round (/ (send edge :length) 50))) ;;sample a point every 5cm 
 	pt-list)
-    (dotimes (i 9)
-      (push (send edge :point (/ (+ i 1) 10.0)) pt-list))
-
+    (when (>= n 0)
+      (dotimes (i 9)
+	(push (send edge :point (/ (+ i 1) 10.0)) pt-list))
     (sort pt-list #'(lambda (p1 p2)
 		      (if (<= (norm (v- p1 pt)) (norm (v- p2 pt)))
-			  t)))
+			  t))))
     (subseq pt-list 0 n)))
 
 
@@ -170,6 +175,7 @@
 		      :use-torso (if use-torso t 0.0)
 		      ;;:use-base (if use-torso t nil)
 		      :rotational-axis t
+		      :look-at-target t
 		      :debug-view nil)
 	  (send pre-cds :rotate (deg2rad -180) :x))
 	(if (send *pr2* :inverse-kinematics pre-cds
@@ -178,6 +184,7 @@
 		  :use-torso (if use-torso t 0.0)
 		;;:use-base (if use-torso t nil)
 		:rotational-axis t
+		:look-at-target t
 		:debug-view nil)
 	  (progn
 	    (push (send *pr2* :angle-vector) avs)
@@ -218,11 +225,11 @@
     (send *pr2* :reset-pose)
 
 	 (dolist (plg (sort-polygons-by-dist-from *polygons-list* (send *pr2* :larm :end-coords :worldpos)))
-	   (when (>= (abs (send plg :area)) (* 150 150))
+	   (when (>= (abs (send plg :area)) (* 200 200))
 	     (setq l-plg plg)
 	     (return)))
 	 (dolist (plg (sort-polygons-by-dist-from *polygons-list* (send *pr2* :rarm :end-coords :worldpos)))
-	   (when (>= (abs (send plg :area)) (* 150 150))
+	   (when (>= (abs (send plg :area)) (* 200 200))
 	     (setq r-plg plg)
 	     (return)))
 	 (unless (and l-plg r-plg)
@@ -235,20 +242,20 @@
 	 
 	 (if (>= (elt (elt (send l-plg :centroid) 1) 2) (elt (elt (send r-plg :centroid) 1) 2)) ;;if z of l-plg > z of r-plg
 	     (progn 
-	       (dolist (edge l-closest-edge-seq)
+	       (dolist (edge (subseq l-closest-edge-seq 0 10))
 		 (if (> (send edge :length) 50.0)
 		     (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t)))
 		 (when avs1 (return)))
-	       (dolist (edge r-closest-edge-seq)
+	       (dolist (edge (subseq r-closest-edge-seq 0 10))
 		 (if (> (send edge :length) 50.0)
 		     (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil)))
 		 (when avs2 (return))))
 	   (progn 
-	     (dolist (edge r-closest-edge-seq)
+	     (dolist (edge (subseq r-closest-edge-seq 0 10))
 	       (if (> (send edge :length) 50.0)
 		   (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t)))
 	       (when avs1 (return)))
-	     (dolist (edge l-closest-edge-seq)
+	     (dolist (edge (subseq l-closest-edge-seq 0 10))
 	       (if (> (send edge :length) 50.0)
 		   (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil)))
 	       (when avs2 (return)))))
@@ -264,17 +271,33 @@
 
 (defun pr2-grasp-plane ()
   (let* ((avs (generate-grasp-plane-motions))
-	 (pre-av (car avs))
-	 (tgt-av (elt avs 1)))
-    (send *ri* :angle-vector pre-av 5000)
-    (send *ri* :wait-interpolation)
-    (send *ri* :stop-grasp)
-    (unix:usleep (* 1000 1000))
-    (send *ri* :angle-vector tgt-av 3000)
-    (send *ri* :wait-interpolation)
-    (send *ri* :start-grasp :larm :gain 0.1)
-    (send *ri* :start-grasp :rarm :gain 0.1)))
-    
+	 pre-av tgt-av)
+    (setq *grasp-motions-avs* avs)
+    (when avs
+      (setq pre-av (car avs))
+      (setq tgt-av (elt avs 1))
+      (send *ri* :angle-vector pre-av 5000)
+      (send *ri* :wait-interpolation)
+      (send *ri* :stop-grasp)
+      (unix:usleep (* 1000 1000))
+      (send *ri* :angle-vector tgt-av 3000)
+      (send *ri* :wait-interpolation)
+      (send *ri* :start-grasp :larm :gain 0.1)
+      (send *ri* :start-grasp :rarm :gain 0.1))))
+
+(defun pr2-release-plane ()
+  (let ((pre-av (car *grasp-motions-avs*)))
+    (when pre-av
+      (send *ri* :stop-grasp)
+      (unix:usleep (* 1000 1000))
+      (send *ri* :angle-vector pre-av 3000)
+      (send *ri* :wait-interpolation)
+      (send *pr2* :reset-pose)
+      (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
+      (send *ri* :wait-interpolation))))
+	
+	
+  
 
 (setq *tfl* (instance ros::transform-listener :init))
 (ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/polygons"
