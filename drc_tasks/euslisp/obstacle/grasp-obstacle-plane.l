@@ -29,17 +29,6 @@
 					 (reverse pts-list)))
 				   plg-list))))
 
-;; (defun coefficients-array-cb (msg)
-;;   (setq *cofs-cb-flag* t)
-;;   (let ((cof-list (send msg :coefficients))
-;; 	normal-list)
-;;     (dolist (cof cof-list)
-;;       (let ((val (send cof :values)))
-;; 	(push 
-;; 	 (send (send *pr2* :copy-worldcoords) :rotate-vector
-;; 	       (float-vector (elt val 0) (elt val 1) (elt val 2)))
-;; 	 normal-list)))
-;;     (setq *plane-normal-list* (reverse normal-list))))
 
 (defun concated-cb ()
 ;  (when (and *plgs-cb-flag* *cofs-cb-flag*)
@@ -53,7 +42,6 @@
       (setq *cloud-centroid-list* (reverse centroid-list)))
     (init-eus-polygons)
     (setq *plgs-cb-flag* nil)
-					;(setq *cofs-cb-flag* nil)
     (send *ri* :stop-grasp)
     (pr2-grasp-plane)
     (pr2-release-plane)
@@ -62,11 +50,8 @@
 (defun init-eus-polygons ()
   (send *irtviewer* :objects (list *pr2*))
   (let (polygons-list)
-    ;;(when (equal (length *vertices-list-org*) (length *plane-normal-list*))
-    
     ;;shift the detected polygons a little considering the thickness
       (dotimes (i (length *vertices-list-org*))
-	;; (push (instance polygon :init :vertices (elt *vertices-list-org* i) :normal (elt *plane-normal-list* i))
 	(let ((plg-temp (instance polygon :init :vertices (elt *vertices-list-org* i)))
 	      plg v)
 	  (if (>= (v. (matrix-column (send *pr2* :head :end-coords :worldrot) 2) (send plg-temp :normal)) 0)
@@ -121,28 +106,6 @@
 		      (if (<= (norm (v- p1 pt)) (norm (v- p2 pt)))
 			  t))))
     (subseq pt-list 0 n)))
-
-
-    
-    ;; (cond ((<= par 0)
-    ;; 	   (dotimes (i n)
-    ;; 	     (push (send edge :point (/ i 10.0)) pt-list))
-    ;; 	   (setq pt-list (cdr (reverse pt-list))))
-    ;; 	  ((>= par 1)
-    ;; 	   (dotimes (i n)
-    ;; 	     (push (send edge :point (/ i 10.0)) pt-list))
-    ;; 	   (setq pt-list pt-list))
-    ;; 	  ((and (> par 0) (< par 1))
-    ;; 	   (dotimes (i n)
-    ;; 	     (let ((pt+ (send edge :point (+ par (/ i 10.0))))
-    ;; 		   (pt- (send edge :point (- par (/ i 10.0)))))
-    ;; 	       (if (and (> (send edge :parameter pt+)  0) (< (send edge :parameter pt+) 1))
-    ;; 		     (push pt+ pt-list))
-    ;; 	       (if (and (> (send edge :parameter pt-) 0) (< (send edge :parameter pt-) 1))
-    ;; 		   (push pt- pt-list)))))
-    ;; 	  (t
-    ;; 	   ))
-    ;; pt-list))
 
 (defun calc-grasp-motion-from-edge (plg edge use-arm use-torso)
   (let ((tgt-pts (find-candidate-grasp-points edge (send *pr2* use-arm :end-coords :worldpos)))
@@ -303,9 +266,6 @@
 (ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/polygons"
 		jsk_pcl_ros::PolygonArray
 		#'polygons-array-cb)
-;; (ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/coefficients"
-;; 		jsk_pcl_ros::ModelCoefficientsArray
-;; 		#'coefficients-array-cb)
 
 (defun main()
   (ros::rate 5)
@@ -319,9 +279,3 @@
 
 
 (main)
-
-
-
-;; (dolist (pt (find-candidate-grasp-points eg (send  *pr2* :larm :end-coords :worldpos)))
-;;   (let ((c (make-cube 20 20 20 :pos pt)))
-;;     (objects c)))
