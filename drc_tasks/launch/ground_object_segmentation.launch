@@ -76,8 +76,8 @@ leaf_size: 0.01
       <remap from="~input" to="voxelgrid/output" />
       <rosparam>
 tolerance: 0.1
-max_size 30000
-min_size 50
+max_size: 30000
+min_size: 50
       </rosparam>
 
    </node>
