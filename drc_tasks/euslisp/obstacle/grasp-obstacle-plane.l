@@ -1,6 +1,4 @@
-(ros::load-ros-manifest "drc_tasks")
 (ros::roseus-add-msgs "jsk_pcl_ros")
-(ros::roseus "subscribe_plane_to_eus")
 
 (setq *vertices-list-org* nil)
 (setq *plane-normal-list* nil)
@@ -13,11 +11,19 @@
 
 (setq *grasp-motions-avs* nil)
 
+(unless (boundp '*pr2*)
+  (pr2))
+(unless (boundp '*ri*)
+  (setq *ri* (instance pr2-interface :init)))
+(unless (boundp '*irtviewer*)
+  (make-irtviewer))
 
 (defun polygons-array-cb (msg)
+  (ros::ros-info "polygons callback")
   (setq *plgs-cb-flag* t)
   (setq *cloud-stamp* (send msg :header :stamp))
-  (let ((plg-list (send msg :polygons)))
+  (let ((plg-list (send msg :polygons))
+	centroid-list)
     (setq *vertices-list-org* (mapcar #'(lambda (plg)
 				       (let ((pts (send (send plg :polygon) :points))
 					     (pts-list))
@@ -27,25 +33,14 @@
 						  (scale 1000 (float-vector (send pt :x) (send pt :y) (send pt :z))))
 					    pts-list))
 					 (reverse pts-list)))
-				   plg-list))))
-
-
-(defun concated-cb ()
-;  (when (and *plgs-cb-flag* *cofs-cb-flag*)
-  (when *plgs-cb-flag*
-    (let (centroid-list)
-      (dotimes (i (length *vertices-list-org*))
-	(let* ((c (send *tfl* :lookup-transform "/base_footprint" (format nil "/multi_plane_centroidoutput~0,2D" i) *cloud-stamp*)))
-	  (when c
-	    (send c :transform (send *pr2* :copy-worldcoords) :world)
-	    (push  (send c :copy-worldcoords) centroid-list))))
-      (setq *cloud-centroid-list* (reverse centroid-list)))
-    (init-eus-polygons)
-    (setq *plgs-cb-flag* nil)
-    (send *ri* :stop-grasp)
-    (pr2-grasp-plane)
-    (pr2-release-plane)
-    ))
+				      plg-list))
+    (dotimes (i (length *vertices-list-org*))
+      (let* ((c (send *tfl* :lookup-transform "/base_footprint" (format nil "/multi_plane_centroidoutput~0,2D" i) *cloud-stamp*)))
+	(when c
+	  (send c :transform (send *pr2* :copy-worldcoords) :world)
+	  (push  (send c :copy-worldcoords) centroid-list))))
+    (setq *cloud-centroid-list* (reverse centroid-list))
+    (init-eus-polygons)))
     
 (defun init-eus-polygons ()
   (send *irtviewer* :objects (list *pr2*))
@@ -256,6 +251,7 @@
       (send *ri* :angle-vector pre-av 3000)
       (send *ri* :wait-interpolation)
       (send *pr2* :reset-pose)
+      (send *pr2* :head :neck-p :joint-angle 30)
       (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
       (send *ri* :wait-interpolation))))
 	
@@ -263,19 +259,18 @@
   
 
 (setq *tfl* (instance ros::transform-listener :init))
-(ros::subscribe "/ground_object_segmentation/multi_plane_estimation/output/polygons"
+(ros::subscribe "/ground_object_segmentation/multi_plane_estimate/output/polygons"
 		jsk_pcl_ros::PolygonArray
 		#'polygons-array-cb)
 
-(defun main()
-  (ros::rate 5)
-  (do-until-key
-   (ros::spin-once)
-   (concated-cb)
-   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-   (send *irtviewer* :draw-objects :flush t)
-   (ros::sleep)
-   ))
+;; (defun main()
+;;   (ros::rate 5)
+;;   (do-until-key
+;;    (ros::spin-once)
+;;    (concated-cb)
+;;    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+;;    (send *irtviewer* :draw-objects :flush t)
+;;    (ros::sleep)
+;;    ))
 
 
-(main)
