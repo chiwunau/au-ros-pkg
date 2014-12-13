@@ -95,22 +95,14 @@ publish_tf: false
      </rosparam>
    </node>
 
-   <node pkg="jsk_interactive_marker"
-   	 type="bounding_box_menu_marker"
-   	 name="bounding_box_marker"
-   	 output="screen">
-     <remap from="~level00_bounding_box_array" to="level00_cluster_decomposer/boxes" />
-     <remap from="~level01_bounding_box_array" to="level01_cluster_decomposer/boxes" />
-   </node>
-
    <!-- <node pkg="jsk_interactive_marker" -->
    <!-- 	 type="bounding_box_menu_marker" -->
-   <!-- 	 name="bounding_box_menu_marker" -->
+   <!-- 	 name="bounding_box_marker" -->
    <!-- 	 output="screen"> -->
-   <!--   <remap from="~bounding_box_array" to="cluster_decomposer/boxes" /> -->
+   <!--   <remap from="~level00_bounding_box_array" to="level00_cluster_decomposer/boxes" /> -->
+   <!--   <remap from="~level01_bounding_box_array" to="level01_cluster_decomposer/boxes" /> -->
    <!-- </node> -->
 
-   
    <node pkg="nodelet" type="nodelet"
 	 name="level00_selected_cloud"
 	 args="load jsk_pcl/SelectedClusterPublisher $(arg MANAGER)"
