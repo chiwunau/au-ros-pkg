@@ -251,7 +251,7 @@
       (send *ri* :angle-vector pre-av 3000)
       (send *ri* :wait-interpolation)
       (send *pr2* :reset-pose)
-      (send *pr2* :head :neck-p :joint-angle 30)
+      (send *pr2* :head :neck-p :joint-angle 20)
       (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
       (send *ri* :wait-interpolation))))
 	

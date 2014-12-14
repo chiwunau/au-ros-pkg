@@ -15,7 +15,7 @@
 	  (t))
     ))
 
-(ros::subscribe "/ground_object_segmentation/bounding_box_marker/menu_feedback"
+(ros::subscribe "/ground_object_segmentation/bounding_box_marker/menu_action_request"
 		std_msgs::Int32
 		#'menu-click-cb)
 
