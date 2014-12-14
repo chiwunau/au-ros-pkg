@@ -19,6 +19,7 @@
 (defparameter *ct-gap* 0.0) ;msec
 (defparameter *k-gain-f* 0.8)
 (defparameter *i-gain-f* 0.8)
+(defparameter *manipulate-cds* (make-coords))
 ;; (defparameter *k-gain-f* 0.00001)
 ;; (defparameter *i-gain-f* 0.00001)
 
@@ -75,6 +76,7 @@
   (send cube-obj-pre :move-to *obj-cds-pre* :world)
   (send *irtviewer* :objects (list *pr2* cube-obj-pre)))
 
+ 
 (defun init-obj-cds ()
   (setq *obj-cds-st* (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :rotate (deg2rad (if *pull* 180 0)) :z))
   (setq *obj-gripper-trans* (send *obj-cds-st* :transformation (send *pr2* *use-arm* :end-coords :copy-worldcoords)))
@@ -298,9 +300,12 @@
     (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
     ;; diff-cds))
      output-trans))
-    
 
+(defun manipulate-pose-cb(msg)
+  (setq *manipulate-cds* (ros::tf-pose->coords (send msg :pose)))
+  )
 
-
-
+(ros::subscribe "/ground_object_segmentation/bounding_box_marker/manipulate_pose"
+		geometry_msgs::PoseStamped
+ 		#'manipulate-pose-cb)
 
