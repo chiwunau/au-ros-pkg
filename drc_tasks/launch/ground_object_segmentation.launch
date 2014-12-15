@@ -208,6 +208,30 @@ publish_tf: false
       publish_clouds: false
     </rosparam>
   </node>
+  
+  <node pkg="nodelet" type="nodelet" name="handle_estimator"
+        args="load jsk_pcl/HandleEstimator $(arg MANAGER)">
+    <remap from="~input" to="level00_selected_pointcloud" />
+    <remap from="~input_box" to="bounding_box_marker/level01_selected_box" />
+    <rosparam>                                                                                                             
+      approach_offset: 0.1
+      angle_divide_num: 6
+    </rosparam>
+</node>
+
+
+
+ <!--  <node pkg="roseus" type="roseus" name="handle_estimator" -->
+ <!--        args="$(find jsk_pcl_ros)/euslisp/handle_estimator.l" -->
+ <!-- 	output="screen"> -->
+ <!--    <remap from="~input_box" to="bounding_box_marker/level01_selected_box" /> -->
+ <!--    <rosparam> -->
+ <!--      approach_offset: 0.1 -->
+ <!--      gripper_size: 0.8 -->
+ <!--      angle_difference: 20 -->
+ <!--      candidate_num: 5 -->
+ <!--    </rosparam> -->
+ <!-- </node> -->
 
  <!-- <node pkg="jsk_interactive_marker" -->
  <!--        type="bounding_box_marker" -->
