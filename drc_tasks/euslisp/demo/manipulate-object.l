@@ -1,7 +1,7 @@
 ;; (load "package://pr2eus/pr2-interface.l")
 ;; (pr2-init)
-(load "package://pr2eus/speak.l")
-(ros::roseus "pr2_position_feedback_interaction")
+(require "package://pr2eus/speak.l")
+;;(ros::roseus "pr2_position_feedback_interaction")
 (unless (boundp '*irtviewer*) (make-irtviewer))
 
 ;; (defparameter *k-gain-f* 0.00001)
@@ -40,7 +40,8 @@
    dif-v-seq
    full-av-seq
    dif-cds-seq
-))
+   *last-update-time*
+   ))
 
 (defmethod manipulate-object
   (:init
@@ -58,6 +59,7 @@
    (setq *k-gain-f* 0.8)
    (setq *i-gain-f* 0.8)
    (setq *manipulate-cds* (make-coords))
+   (setq *last-update-time* (ros::time))
    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
    (send *pr2* :move-to (make-coords) :world)
    (setq *gripper-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
@@ -69,10 +71,18 @@
    (send *irtviewer* :objects (list *pr2* cube-obj-pre))
    (ros::subscribe "/ground_object_segmentation/bounding_box_marker/manipulate_pose"
 		   geometry_msgs::PoseStamped
-		   #'(lambda (msg)
-		       (setq *manipulate-cds* (ros::tf-pose->coords (send msg :pose)))))
+		   #'send self :manipulate-pose-cb)
    )
+  
+  (:manipulate-pose-cb
+   (msg)
+   (setq *last-update-time* (send msg :header :stamp))
+   (setq *manipulate-cds* (ros::tf-pose->coords (send msg :pose)))
+   (send self :init-obj-cds))
 
+  (:set-use-arm
+   (arm)
+   (setq *use-arm* arm))
 
   (:init-obj-cds 
    ()
@@ -81,6 +91,7 @@
    (setq *obj-gripper-trans* (send *obj-cds-st* :transformation (send *pr2* *use-arm* :end-coords :copy-worldcoords)))
    (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
    (send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 10) 0 0))
+   (send *obj-trans* :move-to (make-coords) :world)
    )
 
   (:adjust-base-location 
@@ -137,6 +148,10 @@
   
   (:move-object 
    ()
+   (when (>= (abs (- (send *request-time* :to-sec) (send *last-update-time* :to-sec))) 0.5)
+     (ros::ros-warn "latest received pose is to old, give up")
+     (return-from :move-object nil))
+   
    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
    (let*  ((obj-cds-st (send *obj-cds-st* :copy-worldcoords))
 	   (obj-cds-pre (send *obj-cds-pre* :copy-worldcoords))
@@ -209,7 +224,7 @@
 	       (unless av-seq 
 		 (print "failed to solve ik"))
 	       (print " try to move base")
-	       (return-from move-object t))))
+	       (return-from :move-object t))))
 	 (send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	 (send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
 	 (send cube-obj-pre :move-to *obj-cds-pre* :world)
