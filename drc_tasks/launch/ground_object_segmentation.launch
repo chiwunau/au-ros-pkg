@@ -179,17 +179,17 @@ publish_tf: false
 <!--     </rosparam> -->
 <!-- </node> -->
 
-<!--   <node pkg="roseus" type="roseus" name="handle_estimator" -->
-<!--         args="$(find jsk_pcl_ros)/euslisp/handle_estimator.l" -->
-<!--  	output="screen"> -->
-<!--     <remap from="~input_box" to="bounding_box_marker/level01_selected_box" /> -->
-<!--     <rosparam> -->
-<!--       approach_offset: 0.1 -->
-<!--       gripper_size: 0.8 -->
-<!--       angle_difference: 20 -->
-<!--       candidate_num: 5 -->
-<!--     </rosparam> -->
-<!--  </node> -->
+  <node pkg="roseus" type="roseus" name="handle_estimator"
+        args="$(find jsk_pcl_ros)/euslisp/handle_estimator.l"
+ 	output="screen">
+    <remap from="~input_box" to="bounding_box_marker/level01_selected_box" />
+    <rosparam>
+      approach_offset: 0.1
+      gripper_size: 0.8
+      angle_difference: 20
+      candidate_num: 5
+    </rosparam>
+ </node>
 
 </group>
 </launch>
