@@ -72,6 +72,7 @@
 		(progn (print "check2")
 		       (setq plg-l polygons-list)
 		       (mapcar #'(lambda (p) (make-coords :pos(elt (send p :centroid) 1))) (reverse polygons-list)))))
+      (send *irtviewer* :draw-objects :flush t)
       (setq *polygons-list* (reverse polygons-list))))
 
 
@@ -259,7 +260,7 @@
   
 
 (setq *tfl* (instance ros::transform-listener :init))
-(ros::subscribe "/ground_object_segmentation/multi_plane_estimate/output/polygons"
+(ros::subscribe "/ground_object_segmentation/multi_plane_estimate/output_refined_polygon"
 		jsk_pcl_ros::PolygonArray
 		#'polygons-array-cb)
 
