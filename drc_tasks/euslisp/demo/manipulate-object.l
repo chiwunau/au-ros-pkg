@@ -219,7 +219,8 @@
 	     (send self :publish-manipulate-arrow)
 	     (return-from :move-object t)))
 	 
-	 (send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
+	 ;;(send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
+	 (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (push (send obj-trans :copy-worldcoords) obj-trans-seq)
 	 
 	 (send obj-cds :transform obj-trans)
