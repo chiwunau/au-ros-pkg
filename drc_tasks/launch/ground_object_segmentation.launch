@@ -14,17 +14,7 @@
           args="load jsk_topic_tools/Relay $(arg MANAGER)">
       <remap from="~input" to="$(arg INPUT)" />
     </node>
-    <node pkg="nodelet" type="nodelet" name="footprint_polygon_publisher"
-          clear_params="true"
-          args="load jsk_pcl/StaticPolygonArrayPublisher $(arg MANAGER)">
-      <remap from="~input" to="input_relay/output" />
-      <rosparam subst_values="true">
-use_message: true
-frame_ids: [$(arg fixed_frame_id)]
-polygon_array: [[[10, 10, 0], [-10, 10, 0], [-10, -10, 0], [10, -10, 0]]]
-      </rosparam>
-   </node>
-   
+
    <node pkg="nodelet" type="nodelet" name="transform_points"
           args="load jsk_pcl/TfTransformCloud $(arg MANAGER)">
      <remap from="~input" to="input_relay/output" />
