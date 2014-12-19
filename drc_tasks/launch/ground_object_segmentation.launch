@@ -113,23 +113,6 @@ publish_tf: false
      <remap from="~output" to="level00_selected_pointcloud" />
    </node>
    
- <!--   <node pkg="nodelet" type="nodelet" -->
- <!-- 	 name="depth_image_creator" -->
- <!-- 	 args="load jsk_pcl/DepthImageCreator $(arg MANAGER)" -->
- <!--        output="screen" clear_params="true" respawn="true" > -->
- <!--    <remap from="~info" to="$(arg camera_info)" /> -->
- <!--    <remap from="~input" to="selected_pointcloud" /> -->
- <!--    <remap from="~output_cloud" to="/organzied_selected_pointcloud" /> -->
- <!--    <rosparam> -->
- <!--      scale_depth: 1.0 -->
- <!--      max_queue_size:  -->
- <!--      use_fixed_transform: false -->
- <!--      use_service: false -->
- <!--      use_asynchronous: false -->
- <!--      use_approximate: true -->
- <!--    </rosparam> -->
- <!-- </node> -->
-
    <node pkg="nodelet" type="nodelet"
 	 args="load pcl/NormalEstimationOMP $(arg MANAGER)"
 	 name="normal_estimation">
@@ -142,13 +125,6 @@ publish_tf: false
      </rosparam>
    </node>
 
-   <node pkg="nodelet" type="nodelet" name="normal_concat"
-	 args="load jsk_pcl/NormalConcatenater $(arg MANAGER)"
-	 clear_params="true">
-     <remap from="~input" to="level00_selected_pointcloud"/>
-     <remap from="~normal" to="normal_estimation/output"/>
-   </node>
-   
    <node pkg="nodelet" type="nodelet"
    	 args="load jsk_pcl/RegionGrowingMultiplePlaneSegmentation $(arg MANAGER)"
    	 name="multi_plane_estimate">
@@ -209,47 +185,27 @@ publish_tf: false
     </rosparam>
   </node>
   
-  <node pkg="nodelet" type="nodelet" name="handle_estimator"
-        args="load jsk_pcl/HandleEstimator $(arg MANAGER)">
-    <remap from="~input" to="level00_selected_pointcloud" />
+<!--   <node pkg="nodelet" type="nodelet" name="handle_estimator" -->
+<!--         args="load jsk_pcl/HandleEstimator $(arg MANAGER)"> -->
+<!--     <remap from="~input" to="level00_selected_pointcloud" /> -->
+<!--     <remap from="~input_box" to="bounding_box_marker/level01_selected_box" /> -->
+<!--     <rosparam>                                                                                                              -->
+<!--       approach_offset: 0.1 -->
+<!--       angle_divide_num: 6 -->
+<!--     </rosparam> -->
+<!-- </node> -->
+
+  <node pkg="roseus" type="roseus" name="handle_estimator"
+        args="$(find jsk_pcl_ros)/euslisp/handle_estimator.l"
+ 	output="screen">
     <remap from="~input_box" to="bounding_box_marker/level01_selected_box" />
-    <rosparam>                                                                                                             
+    <rosparam>
       approach_offset: 0.1
-      angle_divide_num: 6
+      gripper_size: 0.8
+      angle_difference: 20
+      candidate_num: 5
     </rosparam>
-</node>
+ </node>
 
-
-
- <!--  <node pkg="roseus" type="roseus" name="handle_estimator" -->
- <!--        args="$(find jsk_pcl_ros)/euslisp/handle_estimator.l" -->
- <!-- 	output="screen"> -->
- <!--    <remap from="~input_box" to="bounding_box_marker/level01_selected_box" /> -->
- <!--    <rosparam> -->
- <!--      approach_offset: 0.1 -->
- <!--      gripper_size: 0.8 -->
- <!--      angle_difference: 20 -->
- <!--      candidate_num: 5 -->
- <!--    </rosparam> -->
- <!-- </node> -->
-
- <!-- <node pkg="jsk_interactive_marker" -->
- <!--        type="bounding_box_marker" -->
- <!--        name="level01_bounding_box_marker" -->
- <!--        output="screen" -->
- <!--        > -->
- <!--    <remap from="~bounding_box_array" to="level01_cluster_decomposer/boxes" /> -->
- <!-- </node> -->
-
- <!-- <node pkg="nodelet" type="nodelet" -->
- <!--       name="selected_cloud" -->
- <!--       machine="$(arg MACHINE)" -->
- <!--       args="load jsk_pcl/SelectedClusterPublisher /$(arg MANAGER)" -->
- <!--       output="screen"> -->
- <!--   <remap from="~input" to="/plane_extraction/output" /> -->
- <!--   <remap from="~indices" to="/euclidean_clustering/output" /> -->
- <!--   <remap from="~selected_index" to="/bounding_box_marker/selected_index" /> -->
- <!--   <remap from="~output" to="/selected_pointcloud" /> -->
- <!-- </node> -->
 </group>
 </launch>
