@@ -43,6 +43,7 @@
     (init-eus-polygons)))
     
 (defun init-eus-polygons ()
+  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (send *irtviewer* :objects (list *pr2*))
   (let (polygons-list)
     ;;shift the detected polygons a little considering the thickness
