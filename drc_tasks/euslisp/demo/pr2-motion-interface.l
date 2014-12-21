@@ -22,20 +22,27 @@
       (0
        (pr2-grasp-plane)
        (pr2-release-plane))
+      (4
+       (let ((use-arm :larm))
+	 (send *handle-obj* :grasp-selected-object use-arm)))
+      (5
+       (let ((use-arm :rarm))
+	 (send *handle-obj* :grasp-selected-object use-arm)))
       (6
        (let ((use-arm :larm))
 	 (ros::spin-once)
 	 (when (send *handle-obj* :grasp-selected-object use-arm)
 	   (send *ri* :wait-interpolation)
-	   (ros::spin-once)
-	   (ros::rate 20)
-	   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-	   (send *manip-obj* :set-use-arm use-arm)
-	   (send *manip-obj* :wait-for-manipulate-pose)
-	   (send *manip-obj* :init-obj-cds)
-	   (send *manip-obj* :update-base-trans)
-	   (send *manip-obj* :move-object)
-	   (ros::rate 5))
+	   (send *manip-obj* :manipulate-object use-arm)
+	   ;; (ros::rate 20)
+	   ;; (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+	   ;; (send *manip-obj* :set-use-arm use-arm)
+	   ;; (send *manip-obj* :wait-for-manipulate-pose)
+	   ;; (send *manip-obj* :init-obj-cds)
+	   ;; (send *manip-obj* :update-base-trans)
+	   ;; (send *manip-obj* :move-object)
+	   ;; (ros::rate 5))
+	   )
 	 )))))
 
 
