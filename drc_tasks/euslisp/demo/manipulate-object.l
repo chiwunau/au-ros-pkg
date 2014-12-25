@@ -42,7 +42,7 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 40.0)
+   (setq *speed* 30.0)
    (setq *fb-period* 1000.0)
    (setq *ik-division* 8)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
@@ -203,7 +203,7 @@
 	  tms-pre
 	  tms-new
 	  st-time-pre
-	  (st-time-new (ros::time+ t-now (ros::time 0.5)))
+	  (st-time-new (ros::time+ t-now (ros::time (/ *fb-period* 2 1000.0))))
 	  dist-from-pre
 	  (obj-cds-st (send *obj-cds-st* :copy-worldcoords))
 	  (obj-cds-pre (send *obj-cds-pre* :copy-worldcoords))
@@ -226,17 +226,15 @@
 	 (let ((tr (send obj-cds-pre :transformation obj-cds)))
 	   (setq dist-from-pre (norm (send tr :worldpos)))
 	   (print dist-from-pre)
-	   (when (or (< dist-from-pre (/ *ideal-fb-dist* 100.0)) (< (elt (send tr :worldpos) 0) 0.0))
+	   (when (or (< dist-from-pre (/ *ideal-fb-dist* 3.0)) (< (elt (send tr :worldpos) 0) 0.0))
 	     (return-from :move-object "stuck")))
 	 
-	 (send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
+	 ;;(send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
+	 (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (send obj-cds :transform obj-trans)
-	 ;; (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
-
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
 	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
 	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
-	   
 	   (let ((res (send self :calc-gripper-trajectory next-cds *ideal-fb-dist*)))
 	     (if res
 		 (progn
@@ -258,33 +256,19 @@
 	 ;;connect two angle-vector-sequences
 	   (setq t-now (ros::time-now))
 	   (format t "after:~A~%" t-now)
-	   (setq st-time-new t-now)
 	   (unless (= (length avs-pre) 0)
-	     (let ((t-acc st-time-pre)
-		   n dt)
-	       (dotimes (i (length avs-pre))
-		 (setq t-acc (ros::time+ t-acc (ros::time (/ (elt tms-pre i) 1000.0))))
-		 (when (>= (send (ros::time- t-acc t-now) :to-nsec) 0.0)
-		   (format t "t-acc:~A~%" t-acc)
-		   (setq n i)
-		   (return))
-		 (setq dt (* 1e-6 (send (ros::time- t-now t-acc) :to-nsec))))
-	       (print n)
-	       (when n 
-		 (if (>= n 0)
-		     (progn 
-		       (setq st-time-new (ros::time- t-now (ros::time (/ (+ (elt tms-pre (1- n)) dt) 1000.0))))
-		       (when (> (length avs-pre) (+ n 2))
-			 (push (elt avs-pre (1+ n)) avs-new))
-		       (push (elt avs-pre n) avs-new)
-		       (push (elt avs-pre (1- n)) avs-new)
-		       (setf (elt tms-new 0)
-			     (+ (* (- (length tms-pre) n (if (> (length avs-pre) (+ n 2)) 2 1)) t-gap) (elt tms-new 0)))
-		       (when (> (length avs-pre) (+ n 2))
-			 (push (elt tms-pre (1+ n)) tms-new))
-		       (push (elt tms-pre n) tms-new)
-		       (push (elt tms-pre (1- n)) tms-new)
-		       )))))
+	     (let ((t-acc 0)
+		   (len (/ (length avs-new) 2)))
+	       (dolist (tm (subseq tms-pre 0 (- (length tms-pre) len)))
+		 (setq t-acc (+ t-acc tm)))
+	       (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
+	       (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
+	       ;;adjust t-check
+	       (setq t-check (ros::time+ t-check (ros::time (/ (elt tms-new 0) 1000.0))))
+	       (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
+	       (setq tms-new (append (subseq tms-pre (- (length tms-pre) len)) tms-new))))
+	   (format t "st-time-new:~A~%" st-time-new)
+	   (print (ros::time- t-check st-time-new))
 
 	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
 	   (setq st-time-pre st-time-new)
