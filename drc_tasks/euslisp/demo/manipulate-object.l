@@ -30,6 +30,7 @@
    *last-update-time*
    *speed* ;;mm/s
    *fb-period* ;;msec
+   *ik-division*
    ))
 
 (defmethod manipulate-object
@@ -41,8 +42,9 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 40)
-   (setq *fb-period* 2000)
+   (setq *speed* 40.0)
+   (setq *fb-period* 1000.0)
+   (setq *ik-division* 8)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
@@ -117,7 +119,7 @@
 	       (return-from :manipulate-object nil))
 	 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
 	 (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
-	 (send *obj-cds-pre* :translate (float-vector (* -1 (/ (* *speed* *fb-period*) 1000)) 0 0))
+	 (send *obj-cds-pre* :translate (float-vector (* -1 *ideal-fb-dist*) 0 0))
 	 (send cube-obj-pre :move-to *obj-cds-pre* :world)
  	 )))))
 
@@ -129,7 +131,7 @@
    (send *obj-cds-st* :replace-rot (send *manipulate-cds* :copy-rot))
    (setq *obj-gripper-trans* (send *obj-cds-st* :transformation (send *pr2* *use-arm* :end-coords :copy-worldcoords)))
    (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
-   (send *obj-cds-pre* :translate (float-vector (* -1 (/ (* *speed* *fb-period*) 1000.0)) 0 0))
+   (send *obj-cds-pre* :translate (float-vector (* -1 *ideal-fb-dist*) 0 0))
    ;;(send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 10) 0 0))
    (setq *obj-trans* (make-coords))
    (setq ang-seq nil)
@@ -179,7 +181,7 @@
      (send obj-cds :replace-pos (send *pr2* *use-arm* :end-coords :worldpos))
      (send obj-cds :transform *obj-trans*)
      (send *pr2* :move-to base-tgt :world)
-    (unless (send self :calc-gripper-trajectory obj-cds (round (/ (* *speed* *fb-period*) 1000 10)))
+    (unless (send self :calc-gripper-trajectory obj-cds *ideal-fb-dist* 3)
       (send *pr2* :move-to pr2-cds :world)
       (send *pr2* :angle-vector pr2-av)
       (return-from :check-ik-solvable-at-location nil))
@@ -195,6 +197,7 @@
    (let* ((t-now (ros::time-now))
 	  (t-seq (list t-now))
 	  (t-check t-now)
+	  (t-gap (/ (* 1000.0 *ideal-fb-dist*) (* *ik-division* *speed*)))
 	  avs-pre
 	  avs-new
 	  tms-pre
@@ -211,6 +214,7 @@
      (while (ros::ok)
        (setq t-now (ros::time-now))
        (when (>= (send (ros::time- t-now t-check) :to-nsec) 0)
+	 (setq t-check (ros::time+ t-now (ros::time (/ *fb-period* 1000.0))))
 	 ;(push t-now t-seq)
 	 (format t "before:~A~%" t-now)
 	 ;;(push (* 1e-6 (send (ros::time- (car t-seq) (cadr t-seq)) :to-nsec)) tms)
@@ -233,11 +237,11 @@
 	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
 	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
 	   
-	   (let ((res (send self :calc-gripper-trajectory next-cds (round (/ *ideal-fb-dist* 10.0)))))
+	   (let ((res (send self :calc-gripper-trajectory next-cds *ideal-fb-dist*)))
 	     (if res
 		 (progn
-		   (setq avs-new (cdr res))
-		   (setq tms-new (make-list (length avs-new) :initial-element (/ 10000.0 *speed*)))
+		   (setq avs-new res)
+		   (setq tms-new (make-list (length avs-new) :initial-element t-gap))
 		   (let* ((c (send *pr2* *use-arm* :end-coords :worldpos))
 			  (d (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos)))))
 		     (when (< d 400)
@@ -262,20 +266,26 @@
 		 (setq t-acc (ros::time+ t-acc (ros::time (/ (elt tms-pre i) 1000.0))))
 		 (when (>= (send (ros::time- t-acc t-now) :to-nsec) 0.0)
 		   (format t "t-acc:~A~%" t-acc)
-		   (setq n (1- i))
+		   (setq n i)
 		   (return))
 		 (setq dt (* 1e-6 (send (ros::time- t-now t-acc) :to-nsec))))
 	       (print n)
 	       (when n 
 		 (if (>= n 0)
 		     (progn 
-		       (setq st-time-new (ros::time- t-now (ros::time (/ (+ dt (elt tms-pre n)) 1000.0))))
+		       (setq st-time-new (ros::time- t-now (ros::time (/ (+ (elt tms-pre (1- n)) dt) 1000.0))))
+		       (when (> (length avs-pre) (+ n 2))
+			 (push (elt avs-pre (1+ n)) avs-new))
 		       (push (elt avs-pre n) avs-new)
-		       (setf (elt tms-new 0) (+ dt (* (- (length tms-pre) n 1) (/ 10000.0 *speed*)) (elt tms-new 0)))
-		       (push (elt tms-pre n) tms-new))))))
+		       (push (elt avs-pre (1- n)) avs-new)
+		       (setf (elt tms-new 0)
+			     (+ (* (- (length tms-pre) n (if (> (length avs-pre) (+ n 2)) 2 1)) t-gap) (elt tms-new 0)))
+		       (when (> (length avs-pre) (+ n 2))
+			 (push (elt tms-pre (1+ n)) tms-new))
+		       (push (elt tms-pre n) tms-new)
+		       (push (elt tms-pre (1- n)) tms-new)
+		       )))))
 
-
-	   (setq t-check (ros::time+ t-now (ros::time (/ *fb-period* 1000.0))))
 	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
 	   (setq st-time-pre st-time-new)
 	   (setq avs-pre avs-new)
@@ -303,24 +313,26 @@
      (ros::publish "/ground_object_segmentation/bounding_box_marker/draw_manipulate_arrow" box)))
      
 
-  (:calc-gripper-trajectory 
-   (tgt-cds d) ;start-coords distance[cm]
+  (:calc-gripper-trajectory
+   (tgt-cds d &optional (n *ik-division*)) ;start-coords distance[mm]
    (let* ((obj-cds (make-cascoords :coords (send tgt-cds :copy-worldcoords)))
 	  (c (send (send obj-cds :copy-worldcoords) :transform *obj-gripper-trans*))
 	  (gripper-cds (make-cascoords :coords c))
 	  av-seq)
      ;;(send *irtviewer* :objects obj-cds)
      (send obj-cds :assoc gripper-cds)
-     (dotimes (i (+ d 1))
-       (send *irtviewer* :draw-objects :flush t)
-       (unless (send *pr2* :inverse-kinematics gripper-cds 
-		     :move-target (send *pr2* *use-arm* :end-coords)
-		     :link-list (send *pr2* :link-list (send *pr2* *use-arm* :end-coords :parent))
-		     :use-torso 0.0
-		     :rotational-axis t)
+     (send obj-cds :translate (float-vector (/ (* 1.0 d) n) 0 0))
+     (dotimes (i n)
+       ;;(send *irtviewer* :draw-objects :flush t)
+       (unless (send *pr2* *use-arm* :inverse-kinematics gripper-cds)
+       ;; (unless (send *pr2* :inverse-kinematics gripper-cds
+       ;; 		     :move-target (send *pr2* *use-arm* :end-coords)
+       ;; 		     :link-list (send *pr2* :link-list (send *pr2* *use-arm* :end-coords :parent))
+       ;; 		     :use-torso 0.0
+       ;; 		     :rotational-axis t)
 	 (return-from :calc-gripper-trajectory nil))
        (push (send *pr2* :angle-vector) av-seq)
-       (send obj-cds :translate #f(10 0 0)))
+       (send obj-cds :translate (float-vector (/ (* 1.0 d) n) 0 0)))
      (reverse av-seq)))
 
   
@@ -361,7 +373,7 @@
 	  (v-proj (float-vector (elt dif-v 0) (elt dif-v 1) 0.0))
 	  (ang-z (vector-angle #f(1 0 0) v-proj #f(0 0 1)))
 	  ang-y
-	  (dist-gain (/ (norm dif-v) (/ (* *speed* *fb-period*) 1000.0)))
+	  (dist-gain (/ (norm dif-v) *ideal-fb-dist*))
 	  (k-gain (* 0.45 *k-gain-f*))
 	  (i-gain (* (* (/ *fb-period* 1000.0)) *k-gain-f*))
 	  ;;(i-gain (* (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) *k-gain-f*))
@@ -389,9 +401,7 @@
        (print sum)
        (setq i-factor (scale (/ *fb-period* 1000.0) sum)))
      
-     ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
-     ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
-     ;; diff-cds))
+     (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
+     (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
      output-trans))
-)
 
