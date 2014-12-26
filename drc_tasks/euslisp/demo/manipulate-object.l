@@ -43,7 +43,7 @@
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
    (setq *speed* 40.0)
-   (setq *fb-period* 600.0)
+   (setq *fb-period* 800.0)
    (setq *ik-division* 6)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
@@ -227,7 +227,7 @@
 	 (let ((tr (send obj-cds-pre :transformation obj-cds)))
 	   (setq dist-from-pre (norm (send tr :worldpos)))
 	   (print dist-from-pre)
-	   (when (or (< dist-from-pre (/ *ideal-fb-dist* 3.0)) (< (elt (send tr :worldpos) 0) 0.0))
+	   (when (or (< dist-from-pre (/ *ideal-fb-dist* 5.0)) (< (elt (send tr :worldpos) 0) 0.0))
 	     (return-from :move-object "stuck")))
 	 
 	 ;;(send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
@@ -243,7 +243,7 @@
 		   (setq tms-new (make-list (length avs-new) :initial-element t-gap))
 		   ;;adjust t-check
 		   ;;dobule transition time
-		   (setq t-check (ros::time+ t-check (ros::time (/ (elt tms-new 0) 1000.0))))
+		   (setq t-check (ros::time+ t-check (ros::time (/ (* 1 (elt tms-new 0)) 1000.0))))
 		   (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
 
 		   (let* ((c (send *pr2* *use-arm* :end-coords :worldpos))
@@ -264,12 +264,13 @@
 	   (format t "after:~A~%" t-now)
 	   (unless (= (length avs-pre) 0)
 	     (let ((t-acc 0)
-		   (len (/ (length avs-new) 2)))
+		   (len (max (/ (length avs-new) 2) 3)))
+	       (format t "length avs-new:~A~%" (length avs-new))
 	       (dolist (tm (subseq tms-pre 0 (- (length tms-pre) len)))
 		 (setq t-acc (+ t-acc tm)))
 	       (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
 	       (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
-	       (setq tms-new (append (subseq tms-pre (- (length tms-pre) len)) tms-new))))
+	       (setq tms-new (append (subseq tms-pre (- (length avs-pre) len)) tms-new))))
 	   (format t "st-time-new:~A~%" st-time-new)
 	   (print (ros::time- t-check st-time-new))
 
@@ -350,8 +351,8 @@
        (send *ri* :move-trajectory
 	     (/ (elt dif-v 0) move-time) (/ (elt dif-v 1) move-time) (/ (vector-angle #f(1 0 0) (matrix-column (send diff-cds :worldrot) 0) #f(0 0 1)) (/ move-time 1000.0))
 	     move-time :start-time sttm :send-action t)
-      )))
-
+       )))
+  
   (:calc-trans-from-pos-error 
    (pre-cds cds)
    (let* ((diff-cds (make-coords))
@@ -392,3 +393,12 @@
      (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
      output-trans))
 
+
+  (:test ()
+	 (do-until-key
+	  (send *ri* :angle-vector (send *pr2* :reset-pose))
+	  (send *ri* :wait-interpolation)
+	  (send self :init-obj-cds)
+	  (send *manipulate-cds* :rotate (deg2rad -10) :y)
+	  (send self :move-object)))
+)
