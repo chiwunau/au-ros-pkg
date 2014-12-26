@@ -42,9 +42,9 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 30.0)
-   (setq *fb-period* 1000.0)
-   (setq *ik-division* 8)
+   (setq *speed* 40.0)
+   (setq *fb-period* 600.0)
+   (setq *ik-division* 6)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
@@ -214,9 +214,10 @@
      (while (ros::ok)
        (setq t-now (ros::time-now))
        (when (>= (send (ros::time- t-now t-check) :to-nsec) 0)
-	 (setq t-check (ros::time+ t-now (ros::time (/ *fb-period* 1000.0))))
+	 (setq t-check (ros::time+ t-check (ros::time (/ *fb-period* 1000.0))))
 	 ;(push t-now t-seq)
 	 (format t "before:~A~%" t-now)
+
 	 ;;(push (* 1e-6 (send (ros::time- (car t-seq) (cadr t-seq)) :to-nsec)) tms)
 	 (push (send *pr2* :angle-vector (send *ri* :state :potentio-vector)) *avs-passed*)
 
@@ -233,13 +234,18 @@
 	 (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (send obj-cds :transform obj-trans)
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
-	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
-	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
+	   (send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
+	   ;;(send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
 	   (let ((res (send self :calc-gripper-trajectory next-cds *ideal-fb-dist*)))
 	     (if res
 		 (progn
 		   (setq avs-new res)
 		   (setq tms-new (make-list (length avs-new) :initial-element t-gap))
+		   ;;adjust t-check
+		   ;;dobule transition time
+		   (setq t-check (ros::time+ t-check (ros::time (/ (elt tms-new 0) 1000.0))))
+		   (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
+
 		   (let* ((c (send *pr2* *use-arm* :end-coords :worldpos))
 			  (d (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos)))))
 		     (when (< d 400)
@@ -263,9 +269,6 @@
 		 (setq t-acc (+ t-acc tm)))
 	       (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
 	       (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
-	       ;;adjust t-check
-	       (setq t-check (ros::time+ t-check (ros::time (/ (elt tms-new 0) 1000.0))))
-	       (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
 	       (setq tms-new (append (subseq tms-pre (- (length tms-pre) len)) tms-new))))
 	   (format t "st-time-new:~A~%" st-time-new)
 	   (print (ros::time- t-check st-time-new))
