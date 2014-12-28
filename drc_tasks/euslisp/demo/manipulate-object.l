@@ -42,11 +42,11 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 10.0)
+   (setq *speed* 40.0)
    ;;(setq *fb-period* 800.0) ;;for lan network
-   (setq *fb-period* 1000.0) ;;for wifi network
+   (setq *fb-period* 800.0) ;;for wifi network
 
-   (setq *ik-division* 10)
+   (setq *ik-division* 8)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
@@ -201,13 +201,14 @@
    (let* ((t-now (ros::time-now))
 	  (t-seq (list t-now))
 	  (t-check t-now)
-	  (t-gap (/ (* 1000.0 *ideal-fb-dist*) (* *ik-division* *speed*)))
+	  (t-gap (/ (* 1.5 1000.0 *ideal-fb-dist*) (* *ik-division* *speed*)))
+	  (t-shift 50)
 	  avs-pre
 	  avs-new
 	  tms-pre
 	  tms-new
 	  st-time-pre
-	  (st-time-new (ros::time+ t-now (ros::time (/ *fb-period* 2 1000.0))))
+	  (st-time-new (ros::time+ t-now (ros::time (+ (/ t-shift 1000.0) (/ *fb-period* 2 1000.0)))))
 	  dist-from-pre
 	  (obj-cds-st (send *obj-cds-st* :copy-worldcoords))
 	  (obj-cds-pre (send *obj-cds-pre* :copy-worldcoords))
@@ -227,7 +228,7 @@
 	 (push (send *pr2* :angle-vector (send *ri* :state :potentio-vector :wait-until-update t-check)) *avs-passed*)
 	 (format t "Error:~A~%" (ros::time- (ros::time-now) t-check))
 	 (format t "real joint time error:~A~%" (ros::time-  (car (send *ri* :state :stamp-list)) t-check))
-	 (setq t-check (ros::time+ t-check (ros::time (/ *fb-period* 1000.0))))
+	 (setq t-check (ros::time+ t-check (ros::time (/ (+ t-shift *fb-period*) 1000.0))))
 
 	 (send obj-cds :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
 	 
@@ -244,7 +245,7 @@
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
 	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
 	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
-	   (let ((res (send self :calc-gripper-trajectory next-cds (* 1.0 *ideal-fb-dist*))))
+	   (let ((res (send self :calc-gripper-trajectory next-cds (* 1.5 *ideal-fb-dist*))))
 	     (if res
 		 (progn
 		   (setq avs-new res)
@@ -273,7 +274,7 @@
 	 (unless (= (length avs-pre) 0)
 	   (let* ((t-now (ros::time-now))
 		  (st1 st-time-pre)
-		  (st2 (ros::time+ t-check (ros::time (/ *fb-period* 1000.0 -2.0))))
+		  (st2 (ros::time- t-check (ros::time (/ (+ t-shift *fb-period*) 1000.0 2.0))))
 		  (tms1 tms-pre)
 		  (tms2 tms-new)
 		  et1
@@ -294,18 +295,21 @@
 		   (setq tms1 (subseq tms1 n (1+ n)))
 		   (setq avs1 (subseq avs1 n (1+ n))))
 	       (progn
-		 (setq st1 (ros::time- t-acc (ros::time (/ (+ (elt tms1 (- n 3)) (elt tms1 (- n 2)) (elt tms1 (1- n)) (elt tms1 n)) 1000.0))))
+		 (setq st1 (ros::time- t-acc (ros::time (/ (+ (elt tms1 (1- n)) (elt tms1 n)) 1000.0))))
 		 (if (>= (- (length tms1) n) 2)
 		     (progn
-		       (setq tms1 (subseq tms1 (- n 3) (+ n 2)))
-		       (setq avs1 (subseq avs1 (- n 3) (+ n 2))))
+		       (setq tms1 (subseq tms1 (- n 1) (+ n 2)))
+		       (setq avs1 (subseq avs1 (- n 1) (+ n 2))))
 		   (progn
-		     (setq tms1 (subseq tms1 (- n 3)))
-		     (setq avs1 (subseq avs1 (- n 3)))))))
+		     (setq tms1 (subseq tms1 (- n 1)))
+		     (setq avs1 (subseq avs1 (- n 1)))))))
 	     (setq et1 st1)
 	     (dolist (tm tms1)
 	       (setq et1 (ros::time+ et1 (ros::time (/ tm 1000.0)))))
-	     
+	     (print "----------------------------")
+	     (print et1)
+	     (print st2)
+	     (print "---------------------------")
 	     (setq t-acc st2)
 	     (dolist (tm tms2)
 	       (setq t-acc (ros::time+ t-acc (ros::time (/ tm 1000.0))))
@@ -319,27 +323,35 @@
 	     (setq st-time-new st1)
 	     (setq avs-new (append avs1 (subseq avs2 i)))
 	     (print (ros::time- t-acc et1))
-	     (setq tms-new (append tms1 (list (* 1e-6 (send (ros::time- t-acc et1) :to-nsec))) (subseq tms2 (1+ i))))))
+	     (print tms1)
+	     (print (+ t-shift (* 1e-6 (send (ros::time- t-acc et1) :to-nsec))))
+	     (print (subseq tms2 (1+ i)))
+
+	     (setq tms-new (append tms1 (list (+ t-shift (* 1e-6 (send (ros::time- t-acc et1) :to-nsec)))) (subseq tms2 (1+ i))))))
 	     ;;(setq t-check (ros::time+ t-check (ros::time- t-acc et1))))
 	 (setq t-now (ros::time-now))
 	 (format t "after:~A~%" t-now)
 	   ;; (unless (= (length avs-pre) 0)
 	   ;;   (let ((t-acc 0)
-	   ;; 	   (len (max (/ (length avs-new) 2) 3)))
+	 ;; 	   (len (max (/ (length avs-new) 2) 3)))
 	   ;;     (format t "length avs-new:~A~%" (length avs-new))
 	   ;;     (dolist (tm (subseq tms-pre 0 (- (length tms-pre) len)))
 	   ;; 	 (setq t-acc (+ t-acc tm)))
 	   ;;     (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
 	   ;;     (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
 	   ;;     (setq tms-new (append (subseq tms-pre (- (length avs-pre) len)) tms-new))))
-
+	 ;; (print avs-new)
+	 ;; (print tms-new)
+	 (print st-time-new)
+	 (print (length avs-new))
+	 (print (length tms-new))
+	 
+	 
  	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
 	   (setq st-time-pre st-time-new)
 	   (setq avs-pre avs-new)
 	   (setq tms-pre tms-new)
-
 	   (send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world)
-
 
 	   (ros::ros-warn "t-check - after:~A~%" (ros::time- t-check (ros::time-now)))
 	   ;; (let ((dt (ros::time- (ros::time-now) t-check)))
@@ -347,9 +359,9 @@
 	   ;; 	 (progn
 	   ;; 	   (setq t-check (ros::time+ t-check dt)))))
 	   )
-	   (send *ri* :spin-once)
-	   (ros::sleep)
-	   )))
+       (send *ri* :spin-once)
+       (ros::sleep)
+       )))
 
 
   (:publish-manipulate-arrow
@@ -458,8 +470,8 @@
        (print sum)
        (setq i-factor (scale (/ *fb-period* 1000.0) sum)))
      
-     (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
-     (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
+     ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
+     ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
      output-trans))
 
 
