@@ -42,9 +42,11 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 40.0)
-   (setq *fb-period* 800.0)
-   (setq *ik-division* 6)
+   (setq *speed* 10.0)
+   ;;(setq *fb-period* 800.0) ;;for lan network
+   (setq *fb-period* 1000.0) ;;for wifi network
+
+   (setq *ik-division* 10)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
@@ -104,8 +106,10 @@
 		   (wait-t 5.0))
 	     (while (not (> (- (send *last-update-time* :to-sec) (send *request-time* :to-sec)) 0.5)) ;;if no further comment, return
 	       (when (> (send (ros::time- (ros::time-now) t-st) :to-sec) wait-t)
+		 (ros::ros-info "manipulate object finished!")
 		 (ros::rate 5)
 		 (return-from :manipulate-object t))
+	       (print "waiting for input")
 	       (ros::spin-once)
 	       (ros::sleep)))
 	     (ros::ros-info "continute-to-move-object")
@@ -214,12 +218,16 @@
      (while (ros::ok)
        (setq t-now (ros::time-now))
        (when (>= (send (ros::time- t-now t-check) :to-nsec) 0)
-	 (setq t-check (ros::time+ t-check (ros::time (/ *fb-period* 1000.0))))
+	 (format t "Error:~A~%" (ros::time- t-now t-check))
+
 	 ;(push t-now t-seq)
 	 (format t "before:~A~%" t-now)
 
 	 ;;(push (* 1e-6 (send (ros::time- (car t-seq) (cadr t-seq)) :to-nsec)) tms)
-	 (push (send *pr2* :angle-vector (send *ri* :state :potentio-vector)) *avs-passed*)
+	 (push (send *pr2* :angle-vector (send *ri* :state :potentio-vector :wait-until-update t-check)) *avs-passed*)
+	 (format t "Error:~A~%" (ros::time- (ros::time-now) t-check))
+	 (format t "real joint time error:~A~%" (ros::time-  (car (send *ri* :state :stamp-list)) t-check))
+	 (setq t-check (ros::time+ t-check (ros::time (/ *fb-period* 1000.0))))
 
 	 (send obj-cds :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
 	 
@@ -234,17 +242,17 @@
 	 (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (send obj-cds :transform obj-trans)
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
-	   (send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
-	   ;;(send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
-	   (let ((res (send self :calc-gripper-trajectory next-cds *ideal-fb-dist*)))
+	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
+	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
+	   (let ((res (send self :calc-gripper-trajectory next-cds (* 1.0 *ideal-fb-dist*))))
 	     (if res
 		 (progn
 		   (setq avs-new res)
 		   (setq tms-new (make-list (length avs-new) :initial-element t-gap))
 		   ;;adjust t-check
 		   ;;dobule transition time
-		   (setq t-check (ros::time+ t-check (ros::time (/ (* 1 (elt tms-new 0)) 1000.0))))
-		   (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
+		   ;; (setq t-check (ros::time+ t-check (ros::time (/ (* 1 (elt tms-new 0)) 1000.0))))
+		   ;; (setf (elt tms-new 0) (* 2 (elt tms-new 0)))
 
 		   (let* ((c (send *pr2* *use-arm* :end-coords :worldpos))
 			  (d (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos)))))
@@ -259,28 +267,89 @@
 	 (send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
 	 (send cube-obj-pre :move-to *obj-cds-pre* :world)
 
-	 ;;connect two angle-vector-sequences
-	   (setq t-now (ros::time-now))
-	   (format t "after:~A~%" t-now)
-	   (unless (= (length avs-pre) 0)
-	     (let ((t-acc 0)
-		   (len (max (/ (length avs-new) 2) 3)))
-	       (format t "length avs-new:~A~%" (length avs-new))
-	       (dolist (tm (subseq tms-pre 0 (- (length tms-pre) len)))
-		 (setq t-acc (+ t-acc tm)))
-	       (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
-	       (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
-	       (setq tms-new (append (subseq tms-pre (- (length avs-pre) len)) tms-new))))
-	   (format t "st-time-new:~A~%" st-time-new)
-	   (print (ros::time- t-check st-time-new))
 
-	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
+	 (ros::ros-warn "t-check - after:~A~%" (ros::time- t-check (ros::time-now)))
+	 ;;connect two angle-vector-sequences
+	 (unless (= (length avs-pre) 0)
+	   (let* ((t-now (ros::time-now))
+		  (st1 st-time-pre)
+		  (st2 (ros::time+ t-check (ros::time (/ *fb-period* 1000.0 -2.0))))
+		  (tms1 tms-pre)
+		  (tms2 tms-new)
+		  et1
+		  (n 0)
+		  (i 0)
+		  (t-acc st1)
+		  (avs1 avs-pre)
+		  (avs2 avs-new))
+	     (dolist (tm tms1)
+	       (setq t-acc (ros::time+ t-acc (ros::time (/ tm 1000.0))))
+	       (when (ros::time> t-acc t-now)
+		 (return))
+	       (incf n))
+	     (print n)
+	     (print (length tms1))
+	     (if (= n 0)
+		 (progn
+		   (setq tms1 (subseq tms1 n (1+ n)))
+		   (setq avs1 (subseq avs1 n (1+ n))))
+	       (progn
+		 (setq st1 (ros::time- t-acc (ros::time (/ (+ (elt tms1 (- n 3)) (elt tms1 (- n 2)) (elt tms1 (1- n)) (elt tms1 n)) 1000.0))))
+		 (if (>= (- (length tms1) n) 2)
+		     (progn
+		       (setq tms1 (subseq tms1 (- n 3) (+ n 2)))
+		       (setq avs1 (subseq avs1 (- n 3) (+ n 2))))
+		   (progn
+		     (setq tms1 (subseq tms1 (- n 3)))
+		     (setq avs1 (subseq avs1 (- n 3)))))))
+	     (setq et1 st1)
+	     (dolist (tm tms1)
+	       (setq et1 (ros::time+ et1 (ros::time (/ tm 1000.0)))))
+	     
+	     (setq t-acc st2)
+	     (dolist (tm tms2)
+	       (setq t-acc (ros::time+ t-acc (ros::time (/ tm 1000.0))))
+	       (print t-acc)
+	       (print et1)
+	       (print "check")
+	       (when (ros::time> t-acc et1)
+		 (return))
+	       (incf i))
+	     (format t "i=~A~%" i)
+	     (setq st-time-new st1)
+	     (setq avs-new (append avs1 (subseq avs2 i)))
+	     (print (ros::time- t-acc et1))
+	     (setq tms-new (append tms1 (list (* 1e-6 (send (ros::time- t-acc et1) :to-nsec))) (subseq tms2 (1+ i))))))
+	     ;;(setq t-check (ros::time+ t-check (ros::time- t-acc et1))))
+	 (setq t-now (ros::time-now))
+	 (format t "after:~A~%" t-now)
+	   ;; (unless (= (length avs-pre) 0)
+	   ;;   (let ((t-acc 0)
+	   ;; 	   (len (max (/ (length avs-new) 2) 3)))
+	   ;;     (format t "length avs-new:~A~%" (length avs-new))
+	   ;;     (dolist (tm (subseq tms-pre 0 (- (length tms-pre) len)))
+	   ;; 	 (setq t-acc (+ t-acc tm)))
+	   ;;     (setq st-time-new (ros::time+ st-time-pre (ros::time (/ t-acc 1000.0))))
+	   ;;     (setq avs-new (append (subseq avs-pre (- (length avs-pre) len)) avs-new))
+	   ;;     (setq tms-new (append (subseq tms-pre (- (length avs-pre) len)) tms-new))))
+
+ 	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
 	   (setq st-time-pre st-time-new)
 	   (setq avs-pre avs-new)
 	   (setq tms-pre tms-new)
+
 	   (send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world)
-	 (ros::sleep)
-       ))))
+
+
+	   (ros::ros-warn "t-check - after:~A~%" (ros::time- t-check (ros::time-now)))
+	   ;; (let ((dt (ros::time- (ros::time-now) t-check)))
+	   ;;   (if (ros::time> dt (ros::time 0))
+	   ;; 	 (progn
+	   ;; 	   (setq t-check (ros::time+ t-check dt)))))
+	   )
+	   (send *ri* :spin-once)
+	   (ros::sleep)
+	   )))
 
 
   (:publish-manipulate-arrow
@@ -399,6 +468,10 @@
 	  (send *ri* :angle-vector (send *pr2* :reset-pose))
 	  (send *ri* :wait-interpolation)
 	  (send self :init-obj-cds)
-	  (send *manipulate-cds* :rotate (deg2rad -10) :y)
+	  ;;(send *manipulate-cds* :rotate (deg2rad -10) :y)
 	  (send self :move-object)))
 )
+
+
+(defun hi (&key (a (b 1)))
+  (print a))
