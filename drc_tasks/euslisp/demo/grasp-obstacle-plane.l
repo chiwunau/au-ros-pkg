@@ -200,25 +200,30 @@
 	 (setq l-closest-edge-seq (sort-edge-by-dist-from l-plg (send *pr2* :larm :end-coords :worldpos)))
 	 (setq r-closest-edge-seq (sort-edge-by-dist-from r-plg (send *pr2* :rarm :end-coords :worldpos)))
 	 
-	 (if (>= (elt (elt (send l-plg :centroid) 1) 2) (elt (elt (send r-plg :centroid) 1) 2)) ;;if z of l-plg > z of r-plg
+	 (let ((cnt 0))
+	   (if (>= (elt (elt (send l-plg :centroid) 1) 2) (elt (elt (send r-plg :centroid) 1) 2)) ;;if z of l-plg > z of r-plg
+	       (progn 
+		 (dolist (edge (subseq l-closest-edge-seq 0 10))
+		   (when (> (send edge :length) 50.0)
+		     (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t))
+		     (incf cnt))
+		   (when (or (>= cnt 3) avs1) (return)))
+		 (when avs1
+		   (dolist (edge (subseq r-closest-edge-seq 0 10))
+		     (if (> (send edge :length) 50.0)
+			 (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil)))
+		     (when avs2 (return)))))
 	     (progn 
-	       (dolist (edge (subseq l-closest-edge-seq 0 10))
-		 (if (> (send edge :length) 50.0)
-		     (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t)))
-		 (when avs1 (return)))
 	       (dolist (edge (subseq r-closest-edge-seq 0 10))
-		 (if (> (send edge :length) 50.0)
-		     (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil)))
-		 (when avs2 (return))))
-	   (progn 
-	     (dolist (edge (subseq r-closest-edge-seq 0 10))
-	       (if (> (send edge :length) 50.0)
-		   (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t)))
-	       (when avs1 (return)))
-	     (dolist (edge (subseq l-closest-edge-seq 0 10))
-	       (if (> (send edge :length) 50.0)
-		   (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil)))
-	       (when avs2 (return)))))
+		 (when (> (send edge :length) 50.0)
+		   (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t))
+		   (incf cnt))
+		 (when (or (>= cnt 3) avs1) (return)))
+	       (when avs1 
+		 (dolist (edge (subseq l-closest-edge-seq 0 10))
+		   (if (> (send edge :length) 50.0)
+		       (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil)))
+		   (when avs2 (return)))))))
 
 	 ;;(send *pr2* :angle-vector b4-av)
 	 (setq a1 avs1)
