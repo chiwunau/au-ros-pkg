@@ -58,8 +58,15 @@
        (send *ri* :start-grasp use-arm :gain 0.1)
        (send *ri* :wait-interpolation))
      t)
-   
-    
+  
+  (:release-object
+   (&optional (use-arm :larm))
+   (send *ri* :stop-grasp use-arm)
+   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+   (unless (send *pr2* use-arm :inverse-kinematics (send (send *pr2* use-arm :end-coords :copy-worldcoords) :translate #f(-100 0 0)))
+     (send *pr2* use-arm :inverse-kinematics (send (send *pr2* use-arm :end-coords :copy-worldcoords) :translate #f(-50 0 0))))
+   (send *ri* :angle-vector (send *pr2* :angle-vector) 1000)
+   (send *ri* :wait-interpolation))
     
 
 
