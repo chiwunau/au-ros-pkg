@@ -109,9 +109,11 @@ publish_tf: false
 
     <node pkg="nodelet" type="nodelet" name="multi_plane_estimate"
         args="load jsk_pcl/OrganizedMultiPlaneSegmentation $(arg MANAGER)"
-        clear_params="false">
+        clear_params="true">
     <remap from="~input" to="level00_selected_pointcloud"/>
     <rosparam>
+      min_size: 100
+      distance_theshold: 0.05
       max_curvature: 0.1
       angular_threshold: 0.05
       estimate_normal: true
