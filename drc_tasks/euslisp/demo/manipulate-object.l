@@ -21,7 +21,7 @@
    *k-gain-f*
    *manipulate-cds*
    cds-seq
-   ang-seq
+   *ang-seq*
    dif-v-seq
    *avs-passed*
    dif-cds-seq
@@ -89,7 +89,6 @@
 
   (:manipulate-object
    (arm)
-   (ros::rate 20)
    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
    (send *pr2* :move-to (make-coords) :world)
    (setq *use-arm* arm)
@@ -99,65 +98,69 @@
    (while t
      (let ((res (send self :move-object)))
        (ros::ros-info (format nil "manipulate object status:~A~%" res))
-       (if (equal res "stuck")
-	   (progn
-	     (send self :publish-manipulate-arrow)
-	     (let ((t-st (ros::time-now))
-		   (wait-t 5.0))
+       (when (equal res "stuck")
+	 (progn
+	   (send self :publish-manipulate-arrow)
+	   (let ((t-st (ros::time-now))
+		 (wait-t 5.0))
 	     (while (not (> (- (send *last-update-time* :to-sec) (send *request-time* :to-sec)) 0.5)) ;;if no further comment, return
 	       (when (> (send (ros::time- (ros::time-now) t-st) :to-sec) wait-t)
 		 (ros::ros-info "manipulate object finished!")
-		 (ros::rate 5)
 		 (return-from :manipulate-object t))
 	       (print "waiting for input")
 	       (ros::spin-once)
 	       (ros::sleep)))
-	     (ros::ros-info "continute-to-move-object")
-	     (send self :init-obj-cds)))
-       (if (equal res "move-base")
-	   (progn
-	     (speak-jp "移動します")
-	     (unless (send self :adjust-base-location)
-	       (ros::ros-warn "failed to move-base")
-	       (ros::rate 5)
-	       (return-from :manipulate-object nil))
-	 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-	 (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
-	 (send *obj-cds-pre* :translate (float-vector (* -1 *ideal-fb-dist*) 0 0))
-	 (send cube-obj-pre :move-to *obj-cds-pre* :world)
- 	 )))))
+	   (ros::ros-info "continute-to-move-object")
+	   (send self :init-obj-cds)))
+       (when (equal res "move-base")
+	 (speak-jp "移動します")
+	 (unless (send self :adjust-base-location)
+	   (ros::ros-warn "failed to move-base")
+	   (return-from :manipulate-object nil)))
+       (when (equal res "move-base-closer")
+	 (unless (send self :adjust-base-location-closer)
+	   (return-from :manipulate-object nil)))
+       (when (equal res "move-base-farther")
+	 (unless (send self :adjust-base-location-farther)
+	   (return-from :manipulate-object nil)))
+	  (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+	  (send *obj-cds-pre* :replace-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))
+	  (send *obj-cds-pre* :translate (float-vector (* -1 *ideal-fb-dist*) 0 0))
+	  (send cube-obj-pre :move-to *obj-cds-pre* :world)
+	  )))
 
-
+  
   (:init-obj-cds 
    ()
    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
    (setq *obj-cds-st* (send *pr2* *use-arm* :end-coords :copy-worldcoords))
-   (send *obj-cds-st* :replace-rot (send *manipulate-cds* :copy-rot))
+   (send *obj-cds-st* :replace-rot (send *manipulate-cds* :topy-rot))
    (setq *obj-gripper-trans* (send *obj-cds-st* :transformation (send *pr2* *use-arm* :end-coords :copy-worldcoords)))
    (send *obj-cds-pre* :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
    (send *obj-cds-pre* :translate (float-vector (* -1 *ideal-fb-dist*) 0 0))
    ;;(send *obj-cds-pre* :translate (float-vector (* -1 *fb-inr* 10) 0 0))
    (setq *obj-trans* (make-coords))
-   (setq ang-seq nil)
+   (setq *ang-seq* nil)
    )
 
   (:adjust-base-location 
    ()
    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-   (let* ((base-cds (send *pr2* :copy-worldcoords))
-	  (gripper-pos-cds (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send base-cds :worldrot)) :copy-worldcoords))
+   (let* ((cds-now (send *pr2* :copy-worldcoords))
+	  (cds-tgt (send cds-now :copy-worldcoords))
+	  (gripper-pos-cds (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send cds-tgt :worldrot)) :copy-worldcoords))
 	  (base-trans (send *base-trans* :copy-worldcoords))
 	  res)
      (dotimes (i 10)
        (send *irtviewer* :draw-objects :flush t)
-       (push base-cds *base-cds-seq*)
-       (setq base-cds (make-coords 
+       (push cds-tgt *base-cds-seq*)
+       (setq cds-tgt (make-coords 
 		       :pos (float-vector 
 			     (elt (send (send (send gripper-pos-cds :copy-worldcoords) :transform base-trans) :pos) 0)
 			     (elt (send (send (send gripper-pos-cds :copy-worldcoords) :transform base-trans) :pos) 1)
 			     0.0)
 		       :rot (send gripper-pos-cds :copy-rot)))
-       (setq res (send self :check-ik-solvable-at-location base-cds))
+       (setq res (send self :check-ik-solvable-at-location cds-tgt))
        (send *irtviewer* :draw-objects :flush t)
        (if res (return))
        (let* ((m (matrix #f(1 0 0) #f(0 1 0) #f(0 0 0)))
@@ -165,12 +168,58 @@
 	 (send gripper-pos-cds :rotate (deg2rad (if (>= ang 0.0) 10 -10)) :z)));;need edit for both direction
      (if res
 	 (progn
-	   (send self :hold-arm-move-base base-cds)
+	   (send self :hold-arm-move-base cds-tgt)
 	   (send *ri* :wait-interpolation)
 	   (send self :update-base-trans)
 	   (return-from :adjust-base-location t))
        (progn
 	 (ros::ros-warn "ik-check filed at all candidate location")
+	 (return-from :adjust-base-location nil)))
+     ))
+
+  (:adjust-base-location-closer
+   ()
+   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+   (let* ((cds-now (send *pr2* :copy-worldcoords))
+	  (cds-tgt (send cds-now :copy-worldcoords))
+	  (gripper-to-base (send (send cds-now :transformation (send *pr2* *use-arm* :end-coords)) :copy-worldcoords))
+	  (gripper-vec-to-base (float-vector (elt (send gripper-to-base :worldpos) 0) (elt (send gripper-to-base :worldpos) 0) 0.0))
+	  (ang (vector-angle #f(1 0 0) gripper-vec-to-base #f(0 0 1)))
+	  res)
+     (send cds-tgt :rotate ang :z)
+     (send cds-tgt :translate #f(100 0 0))
+     (setq res (send self :check-ik-solvable-at-location cds-tgt))
+     (if res
+	 (progn
+	   (send self :hold-arm-move-base cds-tgt)
+	   (send *ri* :wait-interpolation)
+	   (send self :update-base-trans)
+	   (return-from :adjust-base-location t))
+       (progn
+	 (ros::ros-warn "failed to move closer")
+	 (return-from :adjust-base-location nil)))
+     ))
+
+  (:adjust-base-location-farther
+   ()
+   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+   (let* ((cds-now (send *pr2* :copy-worldcoords))
+	  (cds-tgt (send cds-now :copy-worldcoords))
+	  (gripper-to-base (send (send cds-now :transformation (send *pr2* *use-arm* :end-coords)) :copy-worldcoords))
+	  (gripper-vec-to-base (float-vector (elt (send gripper-to-base :worldpos) 0) (elt (send gripper-to-base :worldpos) 0) 0.0))
+	  (ang (vector-angle #f(1 0 0) gripper-vec-to-base #f(0 0 1)))
+	  res)
+     (send cds-tgt :rotate ang :z)
+     (send cds-tgt :translate #f(-100 0 0))
+     (setq res (send self :check-ik-solvable-at-location cds-tgt))
+     (if res
+	 (progn
+	   (send self :hold-arm-move-base cds-tgt)
+	   (send *ri* :wait-interpolation)
+	   (send self :update-base-trans)
+	   (return-from :adjust-base-location t))
+       (progn
+	 (ros::ros-warn "failed to move farther")
 	 (return-from :adjust-base-location nil)))
      ))
   
@@ -202,44 +251,50 @@
 	  (t-seq (list t-now))
 	  (t-check t-now)
 	  (t-gap (/ (* 1.5 1000.0 *ideal-fb-dist*) (* *ik-division* *speed*)))
-	  (t-shift 50)
 	  avs-pre
 	  avs-new
 	  tms-pre
 	  tms-new
 	  st-time-pre
-	  (st-time-new (ros::time+ t-now (ros::time (+ (/ t-shift 1000.0) (/ *fb-period* 2 1000.0)))))
+	  (st-time-new (ros::time+ t-now (ros::time (/ *fb-period* 2 1000.0))))
 	  dist-from-pre
 	  (obj-cds-st (send *obj-cds-st* :copy-worldcoords))
 	  (obj-cds-pre (send *obj-cds-pre* :copy-worldcoords))
 	  (obj-cds (make-coords))
+	  (stuck-interval (round (/ 100 *ideal-fb-dist*)))
+	  (stuck-cnt 0)
+	  (loop-cnt 0)
+	  (stuck-pre-cds (send obj-cds-pre :copy-worldcoords))
+	   
 	  (obj-trans (send *obj-trans* :copy-worldcoords)))
      
      
      (while (ros::ok)
        (setq t-now (ros::time-now))
        (when (>= (send (ros::time- t-now t-check) :to-nsec) 0)
-	 (format t "Error:~A~%" (ros::time- t-now t-check))
-
 	 ;(push t-now t-seq)
 	 (format t "before:~A~%" t-now)
 
 	 ;;(push (* 1e-6 (send (ros::time- (car t-seq) (cadr t-seq)) :to-nsec)) tms)
 	 (push (send *pr2* :angle-vector (send *ri* :state :potentio-vector :wait-until-update t-check)) *avs-passed*)
-	 (format t "Error:~A~%" (ros::time- (ros::time-now) t-check))
 	 (format t "real joint time error:~A~%" (ros::time-  (car (send *ri* :state :stamp-list)) t-check))
-	 (setq t-check (ros::time+ t-check (ros::time (/ (+ t-shift *fb-period*) 1000.0))))
+	 (setq t-check (ros::time+ t-check (ros::time (/ *fb-period* 1000.0))))
 
 	 (send obj-cds :move-to (send (make-coords :pos (send *pr2* *use-arm* :end-coords :worldpos) :rot (send *obj-cds-st* :worldrot)) :copy-worldcoords) :world)
 	 
 	 ;;check if object stuck
-	 (let ((tr (send obj-cds-pre :transformation obj-cds)))
-	   (setq dist-from-pre (norm (send tr :worldpos)))
-	   (print dist-from-pre)
-	   (when (or (< dist-from-pre (/ *ideal-fb-dist* 5.0)) (< (elt (send tr :worldpos) 0) 0.0))
-	     (return-from :move-object "stuck")))
-	 
-	 ;;(send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
+	 (if (>= stuck-cnt (1- stuck-interval))
+	     (progn
+	       (let ((tr (send stuck-pre-cds :transformation obj-cds)))
+		 (setq dist-from-pre (norm (send tr :worldpos)))
+		 (print dist-from-pre)
+		 (when (or (< dist-from-pre (/ (* stuck-interval *ideal-fb-dist*) 3.0)) (< (elt (send tr :worldpos) 0) 0.0))
+		   (return-from :move-object "stuck"))
+		 (setq stuck-pre-cds (send obj-cds :copy-worldcoords))
+		 (setq stuck-cnt 0)))
+	   (incf stuck-cnt))
+	   
+	 ;; (send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (send obj-cds :transform obj-trans)
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
@@ -259,10 +314,14 @@
 			  (d (norm (v- (float-vector (elt c 0) (elt c 1) 0.0) (send *pr2* :worldpos)))))
 		     (when (< d 400)
 		       (print "gripper is too close to body")
-		       (return-from :move-object "move-base"))))
+		       (if (= loop-cnt 0)
+			   (return-from :move-object "move-base-farther")
+			 (return-from :move-object "move-base")))))
 	       (progn
 		 (print "failed to solve ik")
-		 (return-from :move-object "move-base")))))
+		 (if (= loop-cnt 0)
+		     (return-from :move-object "move-base-closer")
+		   (return-from :move-object "move-base"))))))
 	 
 	 (send obj-cds-pre :move-to (send obj-cds :copy-worldcoords) :world)
 	 (send *obj-cds-pre* :move-to (send obj-cds-pre :copy-worldcoords) :world)
@@ -274,7 +333,7 @@
 	 (unless (= (length avs-pre) 0)
 	   (let* ((t-now (ros::time-now))
 		  (st1 st-time-pre)
-		  (st2 (ros::time- t-check (ros::time (/ (+ t-shift *fb-period*) 1000.0 2.0))))
+		  (st2 (ros::time- t-check (ros::time (/ *fb-period* 1000.0 2.0))))
 		  (tms1 tms-pre)
 		  (tms2 tms-new)
 		  et1
@@ -306,10 +365,6 @@
 	     (setq et1 st1)
 	     (dolist (tm tms1)
 	       (setq et1 (ros::time+ et1 (ros::time (/ tm 1000.0)))))
-	     (print "----------------------------")
-	     (print et1)
-	     (print st2)
-	     (print "---------------------------")
 	     (setq t-acc st2)
 	     (dolist (tm tms2)
 	       (setq t-acc (ros::time+ t-acc (ros::time (/ tm 1000.0))))
@@ -324,11 +379,14 @@
 	     (setq avs-new (append avs1 (subseq avs2 i)))
 	     (print (ros::time- t-acc et1))
 	     (print tms1)
-	     (print (+ t-shift (* 1e-6 (send (ros::time- t-acc et1) :to-nsec))))
+	     (print (max (* 1 t-gap) (* 1e-6 (send (ros::time- t-acc et1) :to-nsec))))
 	     (print (subseq tms2 (1+ i)))
 
-	     (setq tms-new (append tms1 (list (+ t-shift (* 1e-6 (send (ros::time- t-acc et1) :to-nsec)))) (subseq tms2 (1+ i))))))
-	     ;;(setq t-check (ros::time+ t-check (ros::time- t-acc et1))))
+	     ;; (setq tms-new (append tms1 (list (+ t-shift (* 1e-6 (send (ros::time- t-acc et1) :to-nsec)))) (subseq tms2 (1+ i))))))
+	     (let ((t-shift (max (* 1 t-gap) (* 1e-6 (send (ros::time- t-acc et1) :to-nsec)))))
+	       (setq tms-new (append tms1 (list t-shift) (subseq tms2 (1+ i)))))))
+	       ;; (if (= t-shift (* 1 t-gap))
+	       ;; 	   (setq t-check (ros::time+ t-check (ros::time (/ t-gap 1000.0))))))))
 	 (setq t-now (ros::time-now))
 	 (format t "after:~A~%" t-now)
 	   ;; (unless (= (length avs-pre) 0)
@@ -342,9 +400,9 @@
 	   ;;     (setq tms-new (append (subseq tms-pre (- (length avs-pre) len)) tms-new))))
 	 ;; (print avs-new)
 	 ;; (print tms-new)
-	 (print st-time-new)
-	 (print (length avs-new))
-	 (print (length tms-new))
+	;;(print st-time-new)
+	 ;; (print (length avs-new))
+	 ;; (print (length tms-new))
 	 
 	 
  	   (send *ri* :angle-vector-sequence avs-new tms-new  :default-controller st-time-new)
@@ -352,12 +410,13 @@
 	   (setq avs-pre avs-new)
 	   (setq tms-pre tms-new)
 	   (send *obj-trans* :move-to (send obj-trans :copy-worldcoords) :world)
-
+	   
 	   (ros::ros-warn "t-check - after:~A~%" (ros::time- t-check (ros::time-now)))
 	   ;; (let ((dt (ros::time- (ros::time-now) t-check)))
 	   ;;   (if (ros::time> dt (ros::time 0))
 	   ;; 	 (progn
 	   ;; 	   (setq t-check (ros::time+ t-check dt)))))
+	   (incf loop-cnt)
 	   )
        (send *ri* :spin-once)
        (ros::sleep)
@@ -394,11 +453,6 @@
      (dotimes (i n)
        ;;(send *irtviewer* :draw-objects :flush t)
        (unless (send *pr2* *use-arm* :inverse-kinematics gripper-cds)
-       ;; (unless (send *pr2* :inverse-kinematics gripper-cds
-       ;; 		     :move-target (send *pr2* *use-arm* :end-coords)
-       ;; 		     :link-list (send *pr2* :link-list (send *pr2* *use-arm* :end-coords :parent))
-       ;; 		     :use-torso 0.0
-       ;; 		     :rotational-axis t)
 	 (return-from :calc-gripper-trajectory nil))
        (push (send *pr2* :angle-vector) av-seq)
        (send obj-cds :translate (float-vector (/ (* 1.0 d) n) 0 0)))
@@ -442,7 +496,10 @@
 	  (v-proj (float-vector (elt dif-v 0) (elt dif-v 1) 0.0))
 	  (ang-z (vector-angle #f(1 0 0) v-proj #f(0 0 1)))
 	  ang-y
-	  (dist-gain (/ (norm dif-v) *ideal-fb-dist*))
+	  ang-sum
+	  ang-pid-out
+ 	  ;; (dist-gain (/ (norm dif-v) *ideal-fb-dist*))
+	  (dist-gain (/ (norm dif-v) 100.0))
 	  (k-gain (* 0.45 *k-gain-f*))
 	  (i-gain (* (* (/ *fb-period* 1000.0)) *k-gain-f*))
 	  ;;(i-gain (* (/ (+ *t-long* (* *fb-inr* *t-short*) *t-gap*) 1000.0) *k-gain-f*))
@@ -456,22 +513,28 @@
      (send diff-cds :rotate ang-y :y)
      (push dif-v dif-v-seq)
      (push diff-cds dif-cds-seq)
-     (push (float-vector ang-z ang-y) ang-seq)
+     (push (float-vector ang-z ang-y) *ang-seq*)
      
     ;; (setq k-gain 0.5)
     ;; (setq i-gain 1000000)
      (format t "dist-gain:=~A~%" dist-gain)
-     (setq dist-gain (if (> dist-gain 1.0) 1.0 dist-gain))
+     (setq dist-gain (min (/ *ideal-fb-dist* 100.0) dist-gain))
      (format t "dist-gain:=~A~%" dist-gain)
-     (setq p-factor (car ang-seq))
+     (setq p-factor (car *ang-seq*))
      (let ((sum #f(0 0)))
-       (dolist (ang ang-seq)
+       (dolist (ang *ang-seq*)
 	 (setq sum (v+ sum ang)))
-       (print sum)
        (setq i-factor (scale (/ *fb-period* 1000.0) sum)))
+
+     (setq ang-pid-out (scale (* dist-gain k-gain) (v+ p-factor (scale (/ 1 i-gain) i-factor))))
      
+     (send output-trans :rotate (elt ang-pid-out 0) :z)
+     (send output-trans :rotate (elt ang-pid-out 1) :y)
      ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 0) (/ (elt i-factor 0) i-gain))) :z)
      ;; (send output-trans :rotate (* dist-gain k-gain (+ (elt p-factor 1) (/ (elt i-factor 1) i-gain))) :y)
+     (format t "ang-recent:~A~%" (mapcar #'rad2deg (coerce (car *ang-seq*) cons)))
+     (format t "ang-sum   :~A~%" (mapcar #'rad2deg (coerce sum cons)))
+     (format t "ang-pid :~A~%" (mapcar #'rad2deg (coerce ang-pid-out cons)))
      output-trans))
 
 
@@ -487,3 +550,18 @@
 
 (defun hi (&key (a (b 1)))
   (print a))
+
+(setq *tfl* (instance ros::transform-listener :init))
+(setq req (instance nav_msgs::GetPlanRequest :init))
+(setq header (instance std_msgs::Header :init))
+(send header :stamp (ros::time-now))
+(setq map-to-frame (send *tfl* :lookup-transform "/map" "/base_footprint" (ros::time 0)))
+(send header :frame_id "/base_footprint")
+(send req :start :header header)
+(send req :start :pose (ros::coords->tf-pose (send (make-coords) :transform map-to-frame :world)))
+(send req :goal :header header)
+(send req :goal :pose (ros::coords->tf-pose (send (send (make-coords) :translate #f(100 0 0)) :transform map-to-frame :world)))
+(setq res (ros::service-call "/move_base_node/NavfnROS/make_plan" req))
+
+(send *ri* :go-stop)
+(send *ri* :make-plan)
