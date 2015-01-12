@@ -34,6 +34,7 @@
 	 (when (send *handle-obj* :grasp-selected-object use-arm)
 	   (send *ri* :wait-interpolation)
 	   (send *manip-obj* :manipulate-object use-arm)
+	   (send *handle-obj* :release-object use-arm)
 	   ;; (ros::rate 20)
 	   ;; (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
 	   ;; (send *manip-obj* :set-use-arm use-arm)
