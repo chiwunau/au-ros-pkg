@@ -113,9 +113,10 @@ publish_tf: false
     <remap from="~input" to="level00_selected_pointcloud"/>
     <rosparam>
       min_size: 100
-      distance_theshold: 0.05
+      distance_threshold: 0.05
       max_curvature: 0.1
       angular_threshold: 0.05
+      ransac_refine_outliner_distance_threshold: 0.01
       estimate_normal: true
     </rosparam>
   </node>
