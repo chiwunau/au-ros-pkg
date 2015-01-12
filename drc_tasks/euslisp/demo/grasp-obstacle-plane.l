@@ -53,7 +53,7 @@
 	  (if (>= (v. (matrix-column (send *pr2* :head :end-coords :worldrot) 2) (send plg-temp :normal)) 0)
 	      (setq v (send plg-temp :normal))
 	    (setq v (scale -1.0 (send plg-temp :normal))))
-	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 20 v))) (send plg-temp :vertices))))
+	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 35 v))) (send plg-temp :vertices))))
 	  (push plg polygons-list)))
 
       (mapcar #'(lambda (plg ct)
@@ -257,8 +257,9 @@
       (unix:usleep (* 1000 1000))
       (send *ri* :angle-vector pre-av 3000)
       (send *ri* :wait-interpolation)
-      (send *pr2* :reset-pose)
-      (send *pr2* :head :neck-p :joint-angle 20)
+      (let ((a (send *pr2* :head :neck-p :joint-angle)))
+	(send *pr2* :reset-pose)
+	(send *pr2* :head :neck-p :joint-angle a))
       (send *ri* :angle-vector (send *pr2* :angle-vector) 2000)
       (send *ri* :wait-interpolation))))
 	
