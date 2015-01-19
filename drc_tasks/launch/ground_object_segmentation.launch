@@ -116,7 +116,8 @@ publish_tf: false
       distance_threshold: 0.05
       max_curvature: 0.1
       angular_threshold: 0.05
-      ransac_refine_outliner_distance_threshold: 0.01
+      connect_plane_distance_threshold: 0.5
+      ransac_refine_outlier_distance_threshold: 0.01
       estimate_normal: true
     </rosparam>
   </node>
