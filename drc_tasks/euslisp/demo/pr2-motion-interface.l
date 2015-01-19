@@ -1,4 +1,5 @@
 (require "package://pr2eus/pr2-interface.l")
+(require "package://pr2eus_moveit/euslisp/pr2eus-moveit.l")
 (pr2-init)
 (load "package://drc_tasks/euslisp/demo/grasp-obstacle-plane.l")
 (load "package://drc_tasks/euslisp/demo/grasp-object.l")
@@ -6,6 +7,8 @@
 (ros::load-ros-manifest "drc_tasks")
 (ros::roseus-add-msgs "jsk_pcl_ros")
 (ros::roseus "pr2_grasp_plane_node")
+
+(send *ri* :set-moveit-environment (instance moveit-environment :init))
 
 (unless (boundp '*irtviewer*)
   (make-irtviewer))

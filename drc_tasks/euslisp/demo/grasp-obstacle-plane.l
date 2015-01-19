@@ -1,4 +1,5 @@
 (ros::roseus-add-msgs "jsk_pcl_ros")
+(require "package://pr2eus_moveit/euslisp/pr2eus-moveit.l")
 
 (setq *vertices-list-org* nil)
 (setq *plane-normal-list* nil)
@@ -236,21 +237,32 @@
 
 (defun pr2-grasp-plane ()
   (let* ((avs (generate-grasp-plane-motions))
-	 pre-av tgt-av)
+	 pre-av tgt-av moveit-res)
     (setq *grasp-motions-avs* avs)
     (when avs
       (setq pre-av (car avs))
       (setq tgt-av (elt avs 1))
-      (send *ri* :angle-vector pre-av 5000)
-      (send *ri* :wait-interpolation)
-      (send *ri* :stop-grasp)
-      (unix:usleep (* 1000 1000))
-      (send *ri* :angle-vector tgt-av 3000)
-      (send *ri* :wait-interpolation)
-      (send *ri* :start-grasp :larm :gain 0.1)
-      (send *ri* :start-grasp :rarm :gain 0.1))))
+      (setq moveit-res
+      	   (send *ri* :angle-vector-motion-plan pre-av :move-arm :arms :use-torso t))
+      (if moveit-res
+	  (progn
+	    (warn "Move-it Succeeded")
+	    (send *ri* :wait-interpolation)
+	    (send *ri* :angle-vector pre-av 500)
+	    )
+	(progn
+	  (warn "Move-it Failed")
+	  (send *ri* :angle-vector pre-av 5000)))
 
-(defun pr2-release-plane ()
+	  (send *ri* :wait-interpolation)
+	  (send *ri* :stop-grasp)
+	  (unix:usleep (* 1000 1000))
+	  (send *ri* :angle-vector tgt-av 3000)
+	  (send *ri* :wait-interpolation)
+	  (send *ri* :start-grasp :larm :gain 0.1)
+	  (send *ri* :start-grasp :rarm :gain 0.1))))
+
+  (defun pr2-release-plane ()
   (let ((pre-av (car *grasp-motions-avs*)))
     (when pre-av
       (send *ri* :stop-grasp)
