@@ -6,25 +6,24 @@
   <arg name="NAMESPACE" default="ground_object_segmentation"/>
   <arg name="SELF_FILTER_PARAM" default="$(find jsk_pr2_startup)/jsk_pr2_sensors/tilt_self_filter.yaml" />
 
-  <group ns="$(arg NAMESPACE)">
+  <node pkg="pr2_navigation_self_filter"
+	type="self_filter" clear_params="true"
+	name="openni_cloud_self_filter" respawn="true" output="screen">
+    <remap from="cloud_in" to="$(arg INPUT)" />
+    <remap from="cloud_out" to="~cloud_out" />
+    <rosparam command="load" file="$(arg SELF_FILTER_PARAM)" />
+    <param name="use_rgb" value="true" />
+    <param name="keep_organized" value="true"/>
+    <param name="subsample_value" type="double" value="0.0"/>
+  </node>
 
+  <group ns="$(arg NAMESPACE)">
     <node pkg="nodelet" type="nodelet" name="$(arg MANAGER)"
 	  args="manager" output="screen"/>
 
-    <node pkg="pr2_navigation_self_filter"
-          type="self_filter" clear_params="true"
-          name="openni_cloud_self_filter" respawn="true" output="screen">
-      <remap from="cloud_in" to="$(arg INPUT)" />
-      <remap from="cloud_out" to="~cloud_out" />
-      <rosparam command="load" file="$(arg SELF_FILTER_PARAM)" />
-      <param name="use_rgb" value="true" />
-      <param name="keep_organized" value="true"/>
-      <param name="subsample_value" type="double" value="0.0"/>
-    </node>
-
     <node pkg="nodelet" type="nodelet" name="input_relay"
           args="load jsk_topic_tools/Relay $(arg MANAGER)">
-      <remap from="~input" to="$(arg INPUT)" />
+      <remap from="~input" to="/openni_cloud_self_filter/cloud_out" />
     </node>
 
    <node pkg="nodelet" type="nodelet" name="transform_points"
