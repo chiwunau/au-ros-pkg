@@ -458,7 +458,7 @@
      (send obj-cds :translate (float-vector (/ (* 1.0 d) n) 0 0))
      (dotimes (i n)
        ;;(send *irtviewer* :draw-objects :flush t)
-       (unless (send *pr2* *use-arm* :inverse-kinematics gripper-cds)
+       (unless (send *pr2* *use-arm* :inverse-kinematics gripper-cds :look-at-target t)
 	 (return-from :calc-gripper-trajectory nil))
        (push (send *pr2* :angle-vector) av-seq)
        (send obj-cds :translate (float-vector (/ (* 1.0 d) n) 0 0)))
