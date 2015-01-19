@@ -6,6 +6,12 @@
   <arg name="NAMESPACE" default="ground_object_segmentation"/>
   <arg name="SELF_FILTER_PARAM" default="$(find jsk_pr2_startup)/jsk_pr2_sensors/tilt_self_filter.yaml" />
 
+  <include file="$(find jsk_pr2_startup)/jsk_pr2_moveit/start_pr2_moveit.launch">
+    <arg name="USE_LASER_AND_KINECT" value="false"/>
+    <arg name="USE_LASER" value="false"/>
+    <arg name="USE_KINECT" value="true"/>
+  </include>
+
   <node pkg="pr2_navigation_self_filter"
 	type="self_filter" clear_params="true"
 	name="openni_cloud_self_filter" respawn="true" output="screen">
@@ -181,7 +187,7 @@ publish_tf: false
     <rosparam>
       align_boxes: true
       use_pca: true
-      publish_tf: true
+      publish_tf: false
       publish_clouds: false
     </rosparam>
   </node>
