@@ -12,6 +12,7 @@
 
 (unless (boundp '*irtviewer*)
   (make-irtviewer))
+(send *irtviewer* :objects *pr2*)
 
 (setq *request-time* (ros::time))
 (setq *manip-obj* (instance manipulate-object :init))
