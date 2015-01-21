@@ -129,7 +129,7 @@
       ;;make-sure two grppier would not be too close
       (when (or use-torso (and (not use-torso) (>= (norm (v- (send cds :worldpos) (send *pr2* (if (equal use-arm :larm) :rarm :larm) :end-coords :worldpos))) 200)))
 	(objects (send cds :copy-worldcoords))
-	(setq pre-cds (send cds :translate #f(-50 0 0)))
+	(setq pre-cds (send cds :translate #f(-80 0 0)))
 	(unless (send *pr2* :inverse-kinematics pre-cds
 		      :move-target (send *pr2* use-arm :end-coords)
 		      :link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
@@ -149,7 +149,7 @@
 		:debug-view nil)
 	  (progn
 	    (push (send *pr2* :angle-vector) avs)
-	    (setq tgt-cds (send pre-cds :translate #f(100 0 0)))
+	    (setq tgt-cds (send pre-cds :translate #f(130 0 0)))
 	    (when (send *pr2* :inverse-kinematics tgt-cds
 			:move-target (send *pr2* use-arm :end-coords)
 			:link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
@@ -208,9 +208,9 @@
 		   (when (> (send edge :length) 50.0)
 		     (setq avs1 (calc-grasp-motion-from-edge l-plg edge :larm t))
 		     (incf cnt))
-		   (when (or (>= cnt 3) avs1) (return)))
+		   (when (or (>= cnt 8) avs1) (return)))
 		 (when avs1
-		   (dolist (edge (subseq r-closest-edge-seq 0 10))
+		   (dolist (edge (subseq r-closest-edge-seq 0 20))
 		     (if (> (send edge :length) 50.0)
 			 (setq avs2 (calc-grasp-motion-from-edge r-plg edge :rarm nil)))
 		     (when avs2 (return)))))
@@ -219,9 +219,9 @@
 		 (when (> (send edge :length) 50.0)
 		   (setq avs1 (calc-grasp-motion-from-edge r-plg edge :rarm t))
 		   (incf cnt))
-		 (when (or (>= cnt 3) avs1) (return)))
+		 (when (or (>= cnt 8) avs1) (return)))
 	       (when avs1 
-		 (dolist (edge (subseq l-closest-edge-seq 0 10))
+		 (dolist (edge (subseq l-closest-edge-seq 0 20))
 		   (if (> (send edge :length) 50.0)
 		       (setq avs2 (calc-grasp-motion-from-edge l-plg edge :larm nil)))
 		   (when avs2 (return)))))))
