@@ -42,7 +42,7 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 60.0)
+   (setq *speed* 80.0)
    ;;(setq *fb-period* 800.0) ;;for lan network
    (setq *fb-period* 800.0) ;;for wifi network
 
@@ -101,10 +101,10 @@
        (ros::ros-info (format nil "manipulate object status:~A~%" res))
        (when (or (equal res "rotate-max") (equal res "stuck"))
 	 (progn
-	   (send self :publish-manipulate-arrow)
 	   (let ((t-st (ros::time-now))
 		 (wait-t 5.0))
-	     (while (not (> (- (send *last-update-time* :to-sec) (send *request-time* :to-sec)) 0.5)) ;;if no further comment, return
+	     (send self :publish-manipulate-arrow)
+	     (while (not (>= (- (send *last-update-time* :to-sec) (send t-st :to-sec)) 0.0)) ;;if no further comment, return
 	       (when (> (send (ros::time- (ros::time-now) t-st) :to-sec) wait-t)
 		 (ros::ros-info "manipulate object finished!")
 		 (return-from :manipulate-object t))
