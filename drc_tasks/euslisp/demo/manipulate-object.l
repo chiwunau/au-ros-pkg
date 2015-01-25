@@ -115,7 +115,7 @@
 	   (send self :init-obj-cds)))
        (when (equal res "move-base")
 	 (speak-jp "移動します")
-	 (let ((b4-move-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos)))
+	 (let ((b4-move-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))) ;;prevent it move to much
 	   (if (send self :adjust-base-location)
 	       (progn 
 		 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
@@ -375,7 +375,7 @@
 		   (setq tms1 (subseq tms1 n (1+ n)))
 		   (setq avs1 (subseq avs1 n (1+ n))))
 	       (progn
-		 (setq st1 (ros::time- t-acc (ros::time (/ (+ (elt tms1 (1- n)) (elt tms1 n)) 1000.0))))
+		 (setq st1 (ros::time- t-acc (ros::time (/ (+ (elt tms1 (1- n)) (if (>= n (length tms1)) 0 (elt tms1 n))) 1000.0))))
 		 (if (>= (- (length tms1) n) 2)
 		     (progn
 		       (setq tms1 (subseq tms1 (- n 1) (+ n 2)))
