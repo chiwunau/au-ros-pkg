@@ -37,6 +37,7 @@
       (5
 	 (ros::spin-once)
 	   (send *manip-obj* :manipulate-object *use-arm*)
+	   (send *pr2* :move-to (make-coords) :world)
 	   (send *handle-obj* :release-object *use-arm*)
 	   )
       (6
