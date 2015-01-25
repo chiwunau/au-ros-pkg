@@ -25,7 +25,7 @@
   (:tgt-pose-cb 
    (msg)
    (setq *last-update-time* (send msg :header :stamp))
-   (setq *grasp-obj-tgt-cds* (send (ros::tf-pose->coords (send msg :pose)) :translate #f(40 0 0)))
+   (setq *grasp-obj-tgt-cds* (send (ros::tf-pose->coords (send msg :pose)) :translate #f(10 0 0)))
    (send *irtviewer* :objects  *grasp-obj-tgt-cds*)
    (send *irtviewer* :draw-objects :flush t)
 )
