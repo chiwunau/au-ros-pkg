@@ -115,9 +115,17 @@
 	   (send self :init-obj-cds)))
        (when (equal res "move-base")
 	 (speak-jp "移動します")
-	 (unless (send self :adjust-base-location)
-	   (ros::ros-warn "failed to move-base")
-	   (return-from :manipulate-object nil)))
+	 (let ((b4-move-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos)))
+	   (if (send self :adjust-base-location)
+	       (progn 
+		 (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+		 (when (>= (norm (v- b4-move-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))) 100.0)
+		   (print (norm (v- b4-move-pos (send (send *pr2* *use-arm* :end-coords :copy-worldcoords) :worldpos))))
+		   (return-from :manipulate-object nil))
+		 )
+	     (progn
+	       (ros::ros-warn "failed to move-base")
+	       (return-from :manipulate-object nil)))))
        (when (equal res "move-base-closer")
 	 (unless (send self :adjust-base-location-closer)
 	   (return-from :manipulate-object nil)))
@@ -195,10 +203,10 @@
 	   (send self :hold-arm-move-base cds-tgt)
 	   (send *ri* :wait-interpolation)
 	   (send self :update-base-trans)
-	   (return-from :adjust-base-location t))
+	   (return-from :adjust-base-location-closer t))
        (progn
 	 (ros::ros-warn "failed to move closer")
-	 (return-from :adjust-base-location nil)))
+	 (return-from :adjust-base-location-closer nil)))
      ))
 
   (:adjust-base-location-farther
@@ -218,10 +226,10 @@
 	   (send self :hold-arm-move-base cds-tgt)
 	   (send *ri* :wait-interpolation)
 	   (send self :update-base-trans)
-	   (return-from :adjust-base-location t))
+	   (return-from :adjust-base-location-farther t))
        (progn
 	 (ros::ros-warn "failed to move farther")
-	 (return-from :adjust-base-location nil)))
+	 (return-from :adjust-base-location-farther nil)))
      ))
   
   (:check-ik-solvable-at-location 
