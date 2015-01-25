@@ -42,11 +42,11 @@
    (setq *obj-cds-st* nil)
    (setq *obj-cds-pre* (make-coords))
    (setq *fb-inr* 3)
-   (setq *speed* 40.0)
+   (setq *speed* 60.0)
    ;;(setq *fb-period* 800.0) ;;for lan network
    (setq *fb-period* 800.0) ;;for wifi network
 
-   (setq *ik-division* 8)
+   (setq *ik-division* 4)
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
@@ -99,7 +99,7 @@
    (while t
      (let ((res (send self :move-object)))
        (ros::ros-info (format nil "manipulate object status:~A~%" res))
-       (when (equal res "stuck")
+       (when (or (equal res "rotate-max") (equal res "stuck"))
 	 (progn
 	   (send self :publish-manipulate-arrow)
 	   (let ((t-st (ros::time-now))
@@ -298,6 +298,13 @@
 	 (send obj-trans :transform (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 ;;(setq obj-trans (send self :calc-trans-from-pos-error obj-cds-pre obj-cds))
 	 (send obj-cds :transform obj-trans)
+
+	 ;;leave when rotate more then 110deg
+	 (when (>= (vector-angle (matrix-column (send *obj-cds-st* :worldrot) 0) (matrix-column (send obj-cds :worldrot) 0)) (deg2rad 110))
+	   (return-from :move-object "rotate-max"))
+			
+	   
+
 	 (let ((next-cds (send obj-cds :copy-worldcoords)))
 	   ;;(send next-cds :translate (float-vector (+ (- *ideal-fb-dist* dist-from-pre) (/ *ideal-fb-dist* 2.0)) 0 0.0))
 	   (send next-cds :translate (float-vector (/ *ideal-fb-dist* 2.0) 0 0.0))
@@ -485,7 +492,7 @@
 	  )
      
      (send *pr2* :move-to base-tgt :world)
-     (send *pr2* *use-arm* :inverse-kinematics gripper-cds)
+     (send *pr2* *use-arm* :inverse-kinematics gripper-cds :look-at-target t)
      (let ((sttm (ros::time+ (ros::time-now) (ros::time 0.5))))
        (send *ri* :angle-vector (send *pr2* :angle-vector)
 	     move-time :default-controller sttm)
