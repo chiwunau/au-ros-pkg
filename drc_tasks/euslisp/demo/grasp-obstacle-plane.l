@@ -54,7 +54,7 @@
 	  (if (>= (v. (matrix-column (send *pr2* :head :end-coords :worldrot) 2) (send plg-temp :normal)) 0)
 	      (setq v (send plg-temp :normal))
 	    (setq v (scale -1.0 (send plg-temp :normal))))
-	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 35 v))) (send plg-temp :vertices))))
+	  (setq plg (instance polygon :init :vertices (mapcar #'(lambda (pt) (v+ pt (scale 25 v))) (send plg-temp :vertices))))
 	  (push plg polygons-list)))
 
       (mapcar #'(lambda (plg ct)
@@ -129,7 +129,7 @@
       ;;make-sure two grppier would not be too close
       (when (or use-torso (and (not use-torso) (>= (norm (v- (send cds :worldpos) (send *pr2* (if (equal use-arm :larm) :rarm :larm) :end-coords :worldpos))) 200)))
 	(objects (send cds :copy-worldcoords))
-	(setq pre-cds (send cds :translate #f(-80 0 0)))
+	(setq pre-cds (send cds :translate #f(-100 0 0)))
 	(unless (send *pr2* :inverse-kinematics pre-cds
 		      :move-target (send *pr2* use-arm :end-coords)
 		      :link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
@@ -149,7 +149,7 @@
 		:debug-view nil)
 	  (progn
 	    (push (send *pr2* :angle-vector) avs)
-	    (setq tgt-cds (send pre-cds :translate #f(130 0 0)))
+	    (setq tgt-cds (send pre-cds :translate #f(150 0 0)))
 	    (when (send *pr2* :inverse-kinematics tgt-cds
 			:move-target (send *pr2* use-arm :end-coords)
 			:link-list (send *pr2* :link-list (send *pr2* use-arm :end-coords :parent))
@@ -266,7 +266,7 @@
   (let ((pre-av (car *grasp-motions-avs*)))
     (when pre-av
       (send *ri* :stop-grasp)
-      (unix:usleep (* 1000 1000))
+      (unix:usleep (* 1500 1000))
       (send *ri* :angle-vector pre-av 3000)
       (send *ri* :wait-interpolation)
       (let ((a (send *pr2* :head :neck-p :joint-angle)))
