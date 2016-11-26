@@ -50,7 +50,7 @@
    (setq *ideal-fb-dist* (/ (* *speed* *fb-period*) 1000.0))
    (setq *t-long* 300)
    (setq *t-short* 200)
-   (setq *t-gap* 200.0) 
+   (setq *t-gap* 200.0)
    (setq *ct-gap* 0.0)
    (setq *k-gain-f* 0.8)
    (setq *i-gain-f* 1.2)
@@ -215,7 +215,7 @@
    (let* ((cds-now (send *pr2* :copy-worldcoords))
 	  (cds-tgt (send cds-now :copy-worldcoords))
 	  (gripper-to-base (send (send cds-now :transformation (send *pr2* *use-arm* :end-coords)) :copy-worldcoords))
-	  (gripper-vec-to-base (float-vector (elt (send gripper-to-base :worldpos) 0) (elt (send gripper-to-base :worldpos) 0) 0.0))
+	  (gripper-vec-to-base (float-vector (elt (send gripper-to-base :worldpos) 0) (elt (send gripper-to-base :worldpos) 0) 0.0)) ;;normalize of gripper-vec-to-base is required? 2016-05-16
 	  (ang (vector-angle #f(1 0 0) gripper-vec-to-base #f(0 0 1)))
 	  res)
      (send cds-tgt :rotate ang :z)

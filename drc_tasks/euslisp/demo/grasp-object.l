@@ -1,9 +1,12 @@
+(ros::load-ros-manifest "roseus")
+
 (defclass handle-object
   :slots
   (*grasp-obj-tgt-cds*
    *grasp-obj-tgt-pre-cds-array*
    *grasp-obj-tgt-pre-cds*
    *last-update-time*
+   *tfl*
    ))
 
 (defmethod handle-object
@@ -13,10 +16,11 @@
    (setq *grasp-obj-tgt-pre-cds-array* nil)
    (setq *grasp-obj-tgt-pre-cds* nil)
    (setq *last-update-time* (ros::time))
-   (ros::subscribe "/ground_object_segmentation/handle_estimator/output_best"
+   (setq *tfl* (instance ros::transform-listener :init))
+   (ros::subscribe "/handle_estimator/output_best"
 		   geometry_msgs::PoseStamped
 		   #'send self :tgt-pose-cb)
-   (ros::subscribe "/ground_object_segmentation/handle_estimator/output_best_preapproach"
+   (ros::subscribe "/handle_estimator/output_best_preapproach"
 		   geometry_msgs::PoseStamped
 		   #'send self :tgt-pre-poses-cb))
    
@@ -25,14 +29,19 @@
   (:tgt-pose-cb 
    (msg)
    (setq *last-update-time* (send msg :header :stamp))
-   (setq *grasp-obj-tgt-cds* (send (ros::tf-pose->coords (send msg :pose)) :translate #f(10 0 0)))
+   (let ((trans (send *tfl* :lookup-transform "/base_footprint" "/head_mount_kinect_rgb_optical_frame" (ros::time 0))))
+     (setq *grasp-obj-tgt-cds* (ros::tf-pose->coords (send msg :pose)))
+     (send *grasp-obj-tgt-cds* :transform trans :world)     
+     (send *grasp-obj-tgt-cds*  :translate #f(10 0 0)))
    (send *irtviewer* :objects  *grasp-obj-tgt-cds*)
    (send *irtviewer* :draw-objects :flush t)
-)
+   )
   
   (:tgt-pre-poses-cb 
    (msg)
-   (setq *grasp-obj-tgt-pre-cds* (ros::tf-pose->coords (send msg :pose)))
+   (let ((trans (send *tfl* :lookup-transform "/base_footprint" "/head_mount_kinect_rgb_optical_frame"  (ros::time 0))))
+     (setq *grasp-obj-tgt-pre-cds* (ros::tf-pose->coords (send msg :pose)))
+     (send *grasp-obj-tgt-pre-cds* :transform trans :world))
    (send *irtviewer* :objects  *grasp-obj-tgt-pre-cds*)
    (send *irtviewer* :draw-objects :flush t)
    )
@@ -43,9 +52,9 @@
   
   (:grasp-selected-object 
    (&optional (use-arm :larm))
-   (unless (ros::time= *last-update-time* *request-time*)
-     (ros::ros-warn "latest received pose is to old, give up")
-     (return-from :grasp-selected-object nil))
+   ;; (unless (ros::time= *last-update-time* *request-time*)
+   ;;   (ros::ros-warn "latest received pose is to old, give up")
+   ;;   (return-from :grasp-selected-object nil))
 
      (let ((avs (send self :calc-avs-to-grasp-selected-object use-arm)))
        (when (not (= (length avs) 2))
